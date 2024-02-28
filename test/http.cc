@@ -492,11 +492,11 @@ TEST(http, http_request_headers) {
   const std::string url = "http://localhost:" + std::to_string(port);
 
   const Response response =
-      request_promisified(
-          url, RequestOptionsBuilder()
-                   .set_method(Method::POST)
-                   .set_headers({{"hello", "world"}, {"lol", "hey"}})
-                   .build())
+      request_promisified(url,
+                          RequestOptionsBuilder()
+                              .set_method(Method::POST)
+                              .set_headers({{"hello", "world"}, {"lol", "hey"}})
+                              .build())
           .get();
 
   ASSERT_EQ(response.body, R"({"data":"hey world"})");
