@@ -4,6 +4,7 @@
 #include <winhttp.h>
 
 #include <map>     // std::map
+#include <sstream> // std::stringtream
 #include <string>  // std::string
 #include <thread>  // std::thread
 #include <variant> // std::variant
@@ -44,6 +45,8 @@ auto request(const std::string &url, RequestOptions options,
     if (bResults)
       bResults = WinHttpReceiveResponse(hRequest, NULL);
 
+    std::stringstream body;
+
     // Keep checking for data until there is nothing left.
     if (bResults) {
       do {
@@ -65,7 +68,7 @@ auto request(const std::string &url, RequestOptions options,
                                &dwDownloaded))
             printf("Error %u in WinHttpReadData.\n", GetLastError());
           else
-            printf("%s", pszOutBuffer);
+            body << pszOutBuffer;
 
           // Free the memory allocated to the buffer.
           delete[] pszOutBuffer;
@@ -86,7 +89,7 @@ auto request(const std::string &url, RequestOptions options,
       WinHttpCloseHandle(hSession);
 
     std::variant<std::string, Response> result;
-    result = Response{"Hello, world!", 200, {}};
+    result = Response{body.str(), 200, {}};
     callback(std::move(result));
   }).detach();
 }
