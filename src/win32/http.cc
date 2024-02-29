@@ -21,20 +21,19 @@ auto request(const std::string &url, RequestOptions options,
     HINTERNET hSession = NULL, hConnect = NULL, hRequest = NULL;
 
     // Use WinHttpOpen to obtain a session handle.
-    hSession =
-        WinHttpOpen(L"WinHTTP Example/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                    WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    hSession = WinHttpOpen(L"Req/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                           WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 
     // Specify an HTTP server.
     if (hSession)
-      hConnect = WinHttpConnect(hSession, L"www.microsoft.com",
+      hConnect = WinHttpConnect(hSession, L"www.postman-echo.com",
                                 INTERNET_DEFAULT_HTTPS_PORT, 0);
 
     // Create an HTTP request handle.
     if (hConnect)
-      hRequest =
-          WinHttpOpenRequest(hConnect, L"GET", NULL, NULL, WINHTTP_NO_REFERER,
-                             WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+      hRequest = WinHttpOpenRequest(
+          hConnect, L"GET", L"/get", NULL, WINHTTP_NO_REFERER,
+          WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
 
     // Send a request.
     if (hRequest)
