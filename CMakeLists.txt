@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 if(APPLE)
   add_subdirectory(src/apple)
+elseif(WIN32)
+  add_subdirectory(src/win32)
 endif()
 
 find_package(GoogleTest REQUIRED)

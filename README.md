@@ -8,7 +8,7 @@ cmake -B build && cmake --build build
 
 ## Format
 ```
-clang-format --style=file -i include/http.h src/apple/http.mm test/http.cc
+clang-format --style=file -i include/http.h src/apple/http.mm src/win32/http.cc test/http.cc
 ```
 
 ## Test

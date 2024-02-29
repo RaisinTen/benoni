@@ -44,6 +44,8 @@ auto request_promisified(
 
 } // namespace
 
+#if !defined(_WIN32)
+
 TEST(http, http_basic) {
   // TODO(RaisinTen): Use spawn().
   FILE *pp = popen(R"(node -e \
@@ -525,3 +527,5 @@ TEST(http, http_timeout) {
                           RequestOptionsBuilder().set_timeout(2).build());
   ASSERT_THROW(response.get(), std::runtime_error);
 }
+
+#endif
