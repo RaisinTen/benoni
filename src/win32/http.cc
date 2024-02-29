@@ -3,11 +3,31 @@
 #include <Windows.h>
 #include <winhttp.h>
 
+#include <format>  // std::format
 #include <map>     // std::map
 #include <sstream> // std::stringtream
 #include <string>  // std::string
 #include <thread>  // std::thread
 #include <variant> // std::variant
+
+namespace {
+
+auto get_error_message() -> std::string {
+  DWORD err = GetLastError();
+  char msg[512];
+
+  FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, // dwFlags
+                 nullptr,                    // lpSource
+                 err,                        // dwMessageId
+                 0,                          // dwLanguageId
+                 msg,                        // lpBuffer
+                 512,                        // nSize
+                 nullptr);                   // *Arguments
+
+  return std::format("Error {}: {}\n", err, msg);
+}
+
+} // namespace
 
 namespace req {
 
@@ -15,86 +35,95 @@ auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void {
   std::thread([callback]() {
-    DWORD dwSize = 0;
-    DWORD dwDownloaded = 0;
-    LPSTR pszOutBuffer;
-    BOOL bResults = FALSE;
-    HINTERNET hSession = NULL, hConnect = NULL, hRequest = NULL;
-
     // Use WinHttpOpen to obtain a session handle.
-    hSession = WinHttpOpen(L"Req/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                           WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-
-    // Specify an HTTP server.
-    if (hSession)
-      hConnect = WinHttpConnect(hSession, L"www.postman-echo.com",
-                                INTERNET_DEFAULT_HTTPS_PORT, 0);
-
-    // Create an HTTP request handle.
-    if (hConnect)
-      hRequest = WinHttpOpenRequest(
-          hConnect, L"GET", L"/get", NULL, WINHTTP_NO_REFERER,
-          WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
-
-    // Send a request.
-    if (hRequest)
-      bResults = WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-                                    WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
-
-    // End the request.
-    if (bResults)
-      bResults = WinHttpReceiveResponse(hRequest, NULL);
-
-    std::stringstream body;
-    uint16_t status;
-
-    // Keep checking for data until there is nothing left.
-    if (bResults) {
-      DWORD dwStatusCode = 0;
-      DWORD dwSize = sizeof(DWORD);
-      WinHttpQueryHeaders(hRequest,
-                          WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                          nullptr, &dwStatusCode, &dwSize, nullptr);
-      status = dwStatusCode;
-
-      do {
-        // Check for available data.
-        dwSize = 0;
-        if (!WinHttpQueryDataAvailable(hRequest, &dwSize))
-          printf("Error %u in WinHttpQueryDataAvailable.\n", GetLastError());
-
-        // Allocate space for the buffer.
-        pszOutBuffer = new char[dwSize + 1];
-        if (!pszOutBuffer) {
-          printf("Out of memory\n");
-          dwSize = 0;
-        } else {
-          // Read the data.
-          ZeroMemory(pszOutBuffer, dwSize + 1);
-
-          if (!WinHttpReadData(hRequest, (LPVOID)pszOutBuffer, dwSize,
-                               &dwDownloaded))
-            printf("Error %u in WinHttpReadData.\n", GetLastError());
-          else
-            body << pszOutBuffer;
-
-          // Free the memory allocated to the buffer.
-          delete[] pszOutBuffer;
-        }
-      } while (dwSize > 0);
+    HINTERNET hSession =
+        WinHttpOpen(L"Req/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                    WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (hSession == nullptr) {
+      callback(get_error_message());
+      return;
     }
 
-    // Report any errors.
-    if (!bResults)
-      printf("Error %d has occurred.\n", GetLastError());
+    // Specify an HTTP server.
+    HINTERNET hConnect = WinHttpConnect(hSession, L"www.postman-echo.com",
+                                        INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (hConnect == nullptr) {
+      callback(get_error_message());
+      return;
+    }
+
+    // Create an HTTP request handle.
+    HINTERNET hRequest =
+        WinHttpOpenRequest(hConnect, L"GET", L"/get", NULL, WINHTTP_NO_REFERER,
+                           WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    if (hRequest == nullptr) {
+      callback(get_error_message());
+      return;
+    }
+
+    // Send a request.
+    if (WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                           WINHTTP_NO_REQUEST_DATA, 0, 0, 0) == FALSE) {
+      callback(get_error_message());
+      return;
+    }
+
+    // End the request.
+    if (WinHttpReceiveResponse(hRequest, NULL) == FALSE) {
+      callback(get_error_message());
+      return;
+    }
+
+    // Capture the status code.
+    uint16_t status;
+    DWORD dwStatusCode = 0;
+    DWORD lpdwBufferLength = sizeof(DWORD);
+    if (WinHttpQueryHeaders(
+            hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            nullptr, &dwStatusCode, &lpdwBufferLength, nullptr) == FALSE) {
+      callback(get_error_message());
+      return;
+    }
+    status = dwStatusCode;
+
+    // Keep checking for data until there is nothing left.
+    std::stringstream body;
+    DWORD lpdwNumberOfBytesAvailable = 0;
+    do {
+      // Check for available data.
+      lpdwNumberOfBytesAvailable = 0;
+      if (WinHttpQueryDataAvailable(hRequest, &lpdwNumberOfBytesAvailable) ==
+          FALSE) {
+        callback(get_error_message());
+        return;
+      }
+
+      // Allocate space for the buffer.
+      LPSTR pszOutBuffer = new char[lpdwNumberOfBytesAvailable + 1];
+      if (pszOutBuffer == nullptr) {
+        callback("Out of memory");
+        return;
+      }
+
+      // Read the data.
+      ZeroMemory(pszOutBuffer, lpdwNumberOfBytesAvailable + 1);
+
+      DWORD dwDownloaded = 0;
+      if (WinHttpReadData(hRequest, static_cast<LPVOID>(pszOutBuffer),
+                          lpdwNumberOfBytesAvailable, &dwDownloaded) == FALSE) {
+        callback(get_error_message());
+        return;
+      }
+      body << pszOutBuffer;
+
+      // Free the memory allocated to the buffer.
+      delete[] pszOutBuffer;
+    } while (lpdwNumberOfBytesAvailable > 0);
 
     // Close any open handles.
-    if (hRequest)
-      WinHttpCloseHandle(hRequest);
-    if (hConnect)
-      WinHttpCloseHandle(hConnect);
-    if (hSession)
-      WinHttpCloseHandle(hSession);
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
 
     std::variant<std::string, Response> result;
     result = Response{body.str(), status, {}};
