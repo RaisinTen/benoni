@@ -46,9 +46,17 @@ auto request(const std::string &url, RequestOptions options,
       bResults = WinHttpReceiveResponse(hRequest, NULL);
 
     std::stringstream body;
+    uint16_t status;
 
     // Keep checking for data until there is nothing left.
     if (bResults) {
+      DWORD dwStatusCode = 0;
+      DWORD dwSize = sizeof(DWORD);
+      WinHttpQueryHeaders(hRequest,
+                          WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                          nullptr, &dwStatusCode, &dwSize, nullptr);
+      status = dwStatusCode;
+
       do {
         // Check for available data.
         dwSize = 0;
@@ -89,7 +97,7 @@ auto request(const std::string &url, RequestOptions options,
       WinHttpCloseHandle(hSession);
 
     std::variant<std::string, Response> result;
-    result = Response{body.str(), 200, {}};
+    result = Response{body.str(), status, {}};
     callback(std::move(result));
   }).detach();
 }
