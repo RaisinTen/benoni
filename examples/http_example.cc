@@ -38,11 +38,15 @@ int main() {
       request_promisified("https://postman-echo.com/get");
   try {
     Response response = response_future.get();
+
+    std::cout << "after request" << std::endl;
+
+    std::cout << "response body: [" << response.body << "]" << std::endl;
+    std::cout << "response status: [" << response.status << "]" << std::endl;
   } catch (const std::exception &exception) {
     std::cerr << "error: [" << exception.what() << "]" << std::endl;
     return 1;
   }
-  std::cout << "after request" << std::endl;
 
   return 0;
 }
