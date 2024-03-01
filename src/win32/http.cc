@@ -10,100 +10,167 @@
 #include <variant> // std::variant
 
 namespace req {
+namespace {
+
+class Session {
+public:
+  Session(
+      const std::function<void(std::variant<std::string, Response>)> &callback)
+      // Use WinHttpOpen to obtain a session handle.
+      : hSession_{WinHttpOpen(L"Req/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                              WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS,
+                              0)} {
+    if (hSession_ != nullptr) {
+      return;
+    }
+
+    DWORD err = GetLastError();
+    switch (err) {
+    case ERROR_WINHTTP_INTERNAL_ERROR:
+      callback("WinHttpOpen Error: An internal error has occurred");
+      return;
+    case ERROR_NOT_ENOUGH_MEMORY:
+      callback("WinHttpOpen Error: Not enough memory was available to complete "
+               "the requested operation");
+      return;
+    }
+    callback("WinHttpOpen Error: " + err);
+  }
+
+  ~Session() { WinHttpCloseHandle(hSession_); }
+
+  auto Get() -> HINTERNET { return hSession_; }
+
+private:
+  HINTERNET hSession_;
+};
+
+class Connection {
+public:
+  Connection(
+      const std::function<void(std::variant<std::string, Response>)> &callback,
+      HINTERNET hSession)
+      // Specify an HTTP server.
+      : hConnection_{WinHttpConnect(hSession, L"www.postman-echo.com",
+                                    INTERNET_DEFAULT_HTTPS_PORT, 0)} {
+    if (hConnection_ != nullptr) {
+      return;
+    }
+
+    DWORD err = GetLastError();
+    switch (err) {
+    case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
+      callback("WinHttpConnect Error: The type of handle supplied is "
+               "incorrect for "
+               "this operation");
+      return;
+    case ERROR_WINHTTP_INTERNAL_ERROR:
+      callback("WinHttpConnect Error: An internal error has occurred");
+      return;
+    case ERROR_WINHTTP_INVALID_URL:
+      callback("WinHttpConnect Error: The URL is invalid");
+      return;
+    case ERROR_WINHTTP_OPERATION_CANCELLED:
+      callback(
+          "WinHttpConnect Error: The operation was canceled, usually because "
+          "the handle on which the request was operating was "
+          "closed before the operation completed");
+      return;
+    case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
+      callback(
+          "WinHttpConnect Error: The operation was canceled, usually because "
+          "the handle on which the request was operating was "
+          "closed before the operation completed");
+      return;
+    case ERROR_WINHTTP_SHUTDOWN:
+      callback(
+          "WinHttpConnect Error: The WinHTTP function support is being shut "
+          "down or unloaded");
+      return;
+    case ERROR_NOT_ENOUGH_MEMORY:
+      callback(
+          "WinHttpConnect Error: Not enough memory was available to complete "
+          "the requested operation");
+      return;
+    }
+    callback("WinHttpConnect Error: " + err);
+  }
+
+  ~Connection() { WinHttpCloseHandle(hConnection_); }
+
+  auto Get() -> HINTERNET { return hConnection_; }
+
+private:
+  HINTERNET hConnection_;
+};
+
+class Request {
+public:
+  Request(
+      const std::function<void(std::variant<std::string, Response>)> &callback,
+      HINTERNET hConnection)
+      // Create an HTTP request handle.
+      : hRequest_{WinHttpOpenRequest(
+            hConnection, L"GET", L"/get", NULL, WINHTTP_NO_REFERER,
+            WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE)} {
+    if (hRequest_ != nullptr) {
+      return;
+    }
+
+    DWORD err = GetLastError();
+    switch (err) {
+    case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
+      callback("WinHttpOpenRequest Error: The type of handle supplied "
+               "is incorrect for "
+               "this operation");
+      return;
+    case ERROR_WINHTTP_INTERNAL_ERROR:
+      callback("WinHttpOpenRequest Error: An internal error has occurred");
+      return;
+    case ERROR_WINHTTP_INVALID_URL:
+      callback("WinHttpOpenRequest Error: The URL is invalid");
+      return;
+    case ERROR_WINHTTP_OPERATION_CANCELLED:
+      callback("WinHttpOpenRequest Error: The operation was canceled, "
+               "usually because "
+               "the handle on which the request was operating was "
+               "closed before the operation completed");
+      return;
+    case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
+      callback("WinHttpOpenRequest Error: The operation was canceled, "
+               "usually because "
+               "the handle on which the request was operating was "
+               "closed before the operation completed");
+      return;
+    case ERROR_NOT_ENOUGH_MEMORY:
+      callback("WinHttpOpenRequest Error: Not enough memory was "
+               "available to complete "
+               "the requested operation");
+      return;
+    }
+    callback("WinHttpOpenRequest Error: " + err);
+  }
+
+  ~Request() { WinHttpCloseHandle(hRequest_); }
+
+  auto Get() -> HINTERNET { return hRequest_; }
+
+private:
+  HINTERNET hRequest_;
+};
+
+} // namespace
 
 auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void {
   std::thread([callback]() {
-    // Use WinHttpOpen to obtain a session handle.
-    HINTERNET hSession =
-        WinHttpOpen(L"Req/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                    WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (hSession == nullptr) {
-      DWORD err = GetLastError();
-      switch (err) {
-      case ERROR_WINHTTP_INTERNAL_ERROR:
-        return callback("WinHttpOpen Error: An internal error has occurred");
-      case ERROR_NOT_ENOUGH_MEMORY:
-        return callback(
-            "WinHttpOpen Error: Not enough memory was available to complete "
-            "the requested operation");
-      }
-      return callback("WinHttpOpen Error: " + err);
-    }
-
-    // Specify an HTTP server.
-    HINTERNET hConnect = WinHttpConnect(hSession, L"www.postman-echo.com",
-                                        INTERNET_DEFAULT_HTTPS_PORT, 0);
-    if (hConnect == nullptr) {
-      DWORD err = GetLastError();
-      switch (err) {
-      case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
-        return callback("WinHttpConnect Error: The type of handle supplied is "
-                        "incorrect for "
-                        "this operation");
-      case ERROR_WINHTTP_INTERNAL_ERROR:
-        return callback("WinHttpConnect Error: An internal error has occurred");
-      case ERROR_WINHTTP_INVALID_URL:
-        return callback("WinHttpConnect Error: The URL is invalid");
-      case ERROR_WINHTTP_OPERATION_CANCELLED:
-        return callback(
-            "WinHttpConnect Error: The operation was canceled, usually because "
-            "the handle on which the request was operating was "
-            "closed before the operation completed");
-      case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
-        return callback(
-            "WinHttpConnect Error: The operation was canceled, usually because "
-            "the handle on which the request was operating was "
-            "closed before the operation completed");
-      case ERROR_WINHTTP_SHUTDOWN:
-        return callback(
-            "WinHttpConnect Error: The WinHTTP function support is being shut "
-            "down or unloaded");
-      case ERROR_NOT_ENOUGH_MEMORY:
-        return callback(
-            "WinHttpConnect Error: Not enough memory was available to complete "
-            "the requested operation");
-      }
-      return callback("WinHttpConnect Error: " + err);
-    }
-
-    // Create an HTTP request handle.
-    HINTERNET hRequest =
-        WinHttpOpenRequest(hConnect, L"GET", L"/get", NULL, WINHTTP_NO_REFERER,
-                           WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
-    if (hRequest == nullptr) {
-      DWORD err = GetLastError();
-      switch (err) {
-      case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
-        return callback("WinHttpOpenRequest Error: The type of handle supplied "
-                        "is incorrect for "
-                        "this operation");
-      case ERROR_WINHTTP_INTERNAL_ERROR:
-        return callback(
-            "WinHttpOpenRequest Error: An internal error has occurred");
-      case ERROR_WINHTTP_INVALID_URL:
-        return callback("WinHttpOpenRequest Error: The URL is invalid");
-      case ERROR_WINHTTP_OPERATION_CANCELLED:
-        return callback("WinHttpOpenRequest Error: The operation was canceled, "
-                        "usually because "
-                        "the handle on which the request was operating was "
-                        "closed before the operation completed");
-      case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
-        return callback("WinHttpOpenRequest Error: The operation was canceled, "
-                        "usually because "
-                        "the handle on which the request was operating was "
-                        "closed before the operation completed");
-      case ERROR_NOT_ENOUGH_MEMORY:
-        return callback("WinHttpOpenRequest Error: Not enough memory was "
-                        "available to complete "
-                        "the requested operation");
-      }
-      return callback("WinHttpOpenRequest Error: " + err);
-    }
+    Session session{callback};
+    Connection connection{callback, session.Get()};
+    Request request{callback, connection.Get()};
 
     // Send a request.
-    if (WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+    if (WinHttpSendRequest(request.Get(), WINHTTP_NO_ADDITIONAL_HEADERS, 0,
                            WINHTTP_NO_REQUEST_DATA, 0, 0, 0) == FALSE) {
       DWORD err = GetLastError();
       switch (err) {
@@ -169,7 +236,7 @@ auto request(const std::string &url, RequestOptions options,
     }
 
     // End the request.
-    if (WinHttpReceiveResponse(hRequest, NULL) == FALSE) {
+    if (WinHttpReceiveResponse(request.Get(), nullptr) == FALSE) {
       DWORD err = GetLastError();
       switch (err) {
       case ERROR_WINHTTP_CANNOT_CONNECT:
@@ -251,8 +318,9 @@ auto request(const std::string &url, RequestOptions options,
     DWORD dwStatusCode = 0;
     DWORD lpdwBufferLength = sizeof(DWORD);
     if (WinHttpQueryHeaders(
-            hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-            nullptr, &dwStatusCode, &lpdwBufferLength, nullptr) == FALSE) {
+            request.Get(),
+            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, nullptr,
+            &dwStatusCode, &lpdwBufferLength, nullptr) == FALSE) {
       DWORD err = GetLastError();
       switch (err) {
       case ERROR_WINHTTP_HEADER_NOT_FOUND:
@@ -282,8 +350,8 @@ auto request(const std::string &url, RequestOptions options,
     do {
       // Check for available data.
       lpdwNumberOfBytesAvailable = 0;
-      if (WinHttpQueryDataAvailable(hRequest, &lpdwNumberOfBytesAvailable) ==
-          FALSE) {
+      if (WinHttpQueryDataAvailable(request.Get(),
+                                    &lpdwNumberOfBytesAvailable) == FALSE) {
         DWORD err = GetLastError();
         switch (err) {
         case ERROR_WINHTTP_CONNECTION_ERROR:
@@ -328,7 +396,7 @@ auto request(const std::string &url, RequestOptions options,
       ZeroMemory(pszOutBuffer, lpdwNumberOfBytesAvailable + 1);
 
       DWORD dwDownloaded = 0;
-      if (WinHttpReadData(hRequest, static_cast<LPVOID>(pszOutBuffer),
+      if (WinHttpReadData(request.Get(), static_cast<LPVOID>(pszOutBuffer),
                           lpdwNumberOfBytesAvailable, &dwDownloaded) == FALSE) {
         DWORD err = GetLastError();
         switch (err) {
@@ -368,11 +436,6 @@ auto request(const std::string &url, RequestOptions options,
       // Free the memory allocated to the buffer.
       delete[] pszOutBuffer;
     } while (lpdwNumberOfBytesAvailable > 0);
-
-    // Close any open handles.
-    WinHttpCloseHandle(hRequest);
-    WinHttpCloseHandle(hConnect);
-    WinHttpCloseHandle(hSession);
 
     std::variant<std::string, Response> result;
     result = Response{body.str(), status, {}};
