@@ -34,9 +34,9 @@ auto request_promisified(
 
 int main() {
   std::cout << "before request" << std::endl;
-  std::future<Response> response_future =
-      request_promisified("https://postman-echo.com/get");
   try {
+    std::future<Response> response_future =
+        request_promisified("https://postman-echo.com/get");
     Response response = response_future.get();
 
     std::cout << "after request" << std::endl;
