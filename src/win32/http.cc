@@ -285,6 +285,38 @@ private:
     }
   }
 
+  auto handle_error(const WINHTTP_ASYNC_RESULT &error) -> void {
+    switch (error.dwResult) {
+    case API_RECEIVE_RESPONSE:
+      callback_("Async WinHttpReceiveResponse Error: " +
+                std::to_string(error.dwError));
+      return;
+    case API_QUERY_DATA_AVAILABLE:
+      callback_("Async WinHttpQueryDataAvailable Error: " +
+                std::to_string(error.dwError));
+      return;
+    case API_READ_DATA:
+      callback_("Async WinHttpReadData Error: " +
+                std::to_string(error.dwError));
+      return;
+    case API_WRITE_DATA:
+      callback_("Async WinHttpWriteData Error: " +
+                std::to_string(error.dwError));
+      return;
+    case API_SEND_REQUEST:
+      callback_("Async WinHttpSendRequest Error: " +
+                std::to_string(error.dwError));
+      return;
+    case API_GET_PROXY_FOR_URL:
+      callback_("Async WinHttpGetProxyForUrlEx Error: " +
+                std::to_string(error.dwError));
+      return;
+    }
+    callback_("Async " + std::to_string(error.dwResult) +
+              " WinHttp Error: " + std::to_string(error.dwError));
+    return;
+  }
+
   auto receive_response() -> void {
     if (WinHttpReceiveResponse(request_.Get(), nullptr) == FALSE) {
       DWORD err = GetLastError();
@@ -539,6 +571,10 @@ private:
     assert(dwContext);
     auto http_client = reinterpret_cast<HTTPClient *>(dwContext);
     switch (dwInternetStatus) {
+    case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
+      http_client->handle_error(
+          *static_cast<WINHTTP_ASYNC_RESULT *>(lpvStatusInformation));
+      return;
     case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
       http_client->receive_response();
       return;
