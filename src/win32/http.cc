@@ -12,6 +12,38 @@
 namespace req {
 namespace {
 
+// Refs:
+// https://github.com/microsoft/cpprestsdk/blob/411a109150b270f23c8c97fa4ec9a0a4a98cdecf/Release/src/utilities/asyncrt_utils.cpp#L236-L263
+std::string error_message(int errorCode) {
+  const size_t buffer_size = 4096;
+  DWORD dwFlags = FORMAT_MESSAGE_FROM_SYSTEM;
+  LPCVOID lpSource = NULL;
+
+#if !defined(__cplusplus_winrt)
+  if (errorCode >= 12000) {
+    dwFlags = FORMAT_MESSAGE_FROM_HMODULE;
+    lpSource = GetModuleHandleA(
+        "winhttp.dll"); // This handle DOES NOT need to be freed.
+  }
+#endif
+
+  std::string buffer(buffer_size, 0);
+
+  const auto result = ::FormatMessageA(dwFlags, lpSource, errorCode, 0,
+                                       &buffer[0], buffer_size, nullptr);
+
+  if (result == 0) {
+    return "Unable to get an error message for error code: " +
+           std::to_string(errorCode);
+  }
+
+  // Strip exceeding characters of the initial resize call.
+  buffer.resize(result - 2); // -2 to exclude the carriage return and the line
+                             // break characters at the end.
+
+  return buffer;
+}
+
 class Session {
 public:
   Session(
@@ -25,16 +57,7 @@ public:
     }
 
     DWORD err = GetLastError();
-    switch (err) {
-    case ERROR_WINHTTP_INTERNAL_ERROR:
-      callback("WinHttpOpen Error: An internal error has occurred");
-      return;
-    case ERROR_NOT_ENOUGH_MEMORY:
-      callback("WinHttpOpen Error: Not enough memory was available to complete "
-               "the requested operation");
-      return;
-    }
-    callback("WinHttpOpen Error: " + std::to_string(err));
+    callback("WinHttpOpen Error: " + error_message(err));
   }
 
   ~Session() { WinHttpCloseHandle(hSession_); }
@@ -58,42 +81,7 @@ public:
     }
 
     DWORD err = GetLastError();
-    switch (err) {
-    case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
-      callback("WinHttpConnect Error: The type of handle supplied is "
-               "incorrect for "
-               "this operation");
-      return;
-    case ERROR_WINHTTP_INTERNAL_ERROR:
-      callback("WinHttpConnect Error: An internal error has occurred");
-      return;
-    case ERROR_WINHTTP_INVALID_URL:
-      callback("WinHttpConnect Error: The URL is invalid");
-      return;
-    case ERROR_WINHTTP_OPERATION_CANCELLED:
-      callback(
-          "WinHttpConnect Error: The operation was canceled, usually because "
-          "the handle on which the request was operating was "
-          "closed before the operation completed");
-      return;
-    case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
-      callback(
-          "WinHttpConnect Error: The operation was canceled, usually because "
-          "the handle on which the request was operating was "
-          "closed before the operation completed");
-      return;
-    case ERROR_WINHTTP_SHUTDOWN:
-      callback(
-          "WinHttpConnect Error: The WinHTTP function support is being shut "
-          "down or unloaded");
-      return;
-    case ERROR_NOT_ENOUGH_MEMORY:
-      callback(
-          "WinHttpConnect Error: Not enough memory was available to complete "
-          "the requested operation");
-      return;
-    }
-    callback("WinHttpConnect Error: " + std::to_string(err));
+    callback("WinHttpConnect Error: " + error_message(err));
   }
 
   ~Connection() { WinHttpCloseHandle(hConnection_); }
@@ -118,37 +106,7 @@ public:
     }
 
     DWORD err = GetLastError();
-    switch (err) {
-    case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
-      callback("WinHttpOpenRequest Error: The type of handle supplied "
-               "is incorrect for "
-               "this operation");
-      return;
-    case ERROR_WINHTTP_INTERNAL_ERROR:
-      callback("WinHttpOpenRequest Error: An internal error has occurred");
-      return;
-    case ERROR_WINHTTP_INVALID_URL:
-      callback("WinHttpOpenRequest Error: The URL is invalid");
-      return;
-    case ERROR_WINHTTP_OPERATION_CANCELLED:
-      callback("WinHttpOpenRequest Error: The operation was canceled, "
-               "usually because "
-               "the handle on which the request was operating was "
-               "closed before the operation completed");
-      return;
-    case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
-      callback("WinHttpOpenRequest Error: The operation was canceled, "
-               "usually because "
-               "the handle on which the request was operating was "
-               "closed before the operation completed");
-      return;
-    case ERROR_NOT_ENOUGH_MEMORY:
-      callback("WinHttpOpenRequest Error: Not enough memory was "
-               "available to complete "
-               "the requested operation");
-      return;
-    }
-    callback("WinHttpOpenRequest Error: " + std::to_string(err));
+    callback("WinHttpOpenRequest Error: " + error_message(err));
   }
 
   ~Request() { WinHttpCloseHandle(hRequest_); }
@@ -195,81 +153,7 @@ private:
                            WINHTTP_NO_REQUEST_DATA, 0, 0,
                            option_context) == FALSE) {
       DWORD err = GetLastError();
-      switch (err) {
-      case ERROR_WINHTTP_CANNOT_CONNECT:
-        callback("WinHttpSendRequest Error: Connection to the server failed");
-        return;
-      case ERROR_WINHTTP_CLIENT_AUTH_CERT_NEEDED:
-        callback("WinHttpSendRequest Error: The secure HTTP server "
-                 "requires a client certificate");
-        return;
-      case ERROR_WINHTTP_CONNECTION_ERROR:
-        callback("WinHttpSendRequest Error: The connection with the "
-                 "server has been reset or terminated, or an "
-                 "incompatible SSL protocol was encountered");
-        return;
-      case ERROR_WINHTTP_INCORRECT_HANDLE_STATE:
-        callback("WinHttpSendRequest Error: The requested operation "
-                 "cannot be carried out because the handle supplied is "
-                 "not in the correct state");
-        return;
-      case ERROR_WINHTTP_INTERNAL_ERROR:
-        callback("WinHttpSendRequest Error: An internal error has occurred");
-        return;
-      case ERROR_WINHTTP_INVALID_URL:
-        callback("WinHttpSendRequest Error: The URL is invalid");
-        return;
-      case ERROR_WINHTTP_LOGIN_FAILURE:
-        callback("WinHttpSendRequest Error: The login attempt failed");
-        return;
-      case ERROR_WINHTTP_NAME_NOT_RESOLVED:
-        callback(
-            "WinHttpSendRequest Error: The server name cannot be resolved");
-        return;
-      case ERROR_WINHTTP_OPERATION_CANCELLED:
-        callback("WinHttpSendRequest Error: The operation was canceled, "
-                 "usually because "
-                 "the handle on which the request was operating was "
-                 "closed before the operation completed");
-        return;
-      case ERROR_WINHTTP_RESPONSE_DRAIN_OVERFLOW:
-        callback("WinHttpSendRequest Error: An incoming response "
-                 "exceeds an internal WinHTTP size limit");
-        return;
-      case ERROR_WINHTTP_SECURE_FAILURE:
-        callback(
-            "WinHttpSendRequest Error: One or more errors were found in the "
-            "Secure Sockets Layer (SSL) certificate sent by the server");
-        return;
-      case ERROR_WINHTTP_SHUTDOWN:
-        callback("WinHttpSendRequest Error: The WinHTTP function "
-                 "support is being shut "
-                 "down or unloaded");
-        return;
-      case ERROR_WINHTTP_TIMEOUT:
-        callback("WinHttpSendRequest Error: The request timed out");
-        return;
-      case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
-        callback("WinHttpSendRequest Error: The URL specified a scheme "
-                 "other than \"http:\" or \"https:\"");
-        return;
-      case ERROR_NOT_ENOUGH_MEMORY:
-        callback("WinHttpSendRequest Error: Not enough memory was "
-                 "available to complete "
-                 "the requested operation");
-        return;
-      case ERROR_INVALID_PARAMETER:
-        callback(
-            "WinHttpSendRequest Error: The content length specified in the "
-            "dwTotalLength parameter does not match the length specified in "
-            "the Content-Length header");
-        return;
-      case ERROR_WINHTTP_RESEND_REQUEST:
-        // TODO(RaisinTen): Resend the request.
-        callback("WinHttpSendRequest Error: Resend request");
-        return;
-      }
-      callback("WinHttpSendRequest Error: " + std::to_string(err));
+      callback("WinHttpSendRequest Error: " + error_message(err));
       return;
     }
   }
@@ -289,128 +173,37 @@ private:
     switch (error.dwResult) {
     case API_RECEIVE_RESPONSE:
       callback_("Async WinHttpReceiveResponse Error: " +
-                std::to_string(error.dwError));
+                error_message(error.dwError));
       return;
     case API_QUERY_DATA_AVAILABLE:
       callback_("Async WinHttpQueryDataAvailable Error: " +
-                std::to_string(error.dwError));
+                error_message(error.dwError));
       return;
     case API_READ_DATA:
-      callback_("Async WinHttpReadData Error: " +
-                std::to_string(error.dwError));
+      callback_("Async WinHttpReadData Error: " + error_message(error.dwError));
       return;
     case API_WRITE_DATA:
       callback_("Async WinHttpWriteData Error: " +
-                std::to_string(error.dwError));
+                error_message(error.dwError));
       return;
     case API_SEND_REQUEST:
       callback_("Async WinHttpSendRequest Error: " +
-                std::to_string(error.dwError));
+                error_message(error.dwError));
       return;
     case API_GET_PROXY_FOR_URL:
       callback_("Async WinHttpGetProxyForUrlEx Error: " +
-                std::to_string(error.dwError));
+                error_message(error.dwError));
       return;
     }
     callback_("Async " + std::to_string(error.dwResult) +
-              " WinHttp Error: " + std::to_string(error.dwError));
+              " WinHttp Error: " + error_message(error.dwError));
     return;
   }
 
   auto receive_response() -> void {
     if (WinHttpReceiveResponse(request_.Get(), nullptr) == FALSE) {
       DWORD err = GetLastError();
-      switch (err) {
-      case ERROR_WINHTTP_CANNOT_CONNECT:
-        callback_(
-            "WinHttpReceiveResponse Error: Connection to the server failed");
-        return;
-      case ERROR_WINHTTP_CHUNKED_ENCODING_HEADER_SIZE_OVERFLOW:
-        callback_("WinHttpReceiveResponse Error: An overflow condition is "
-                  "encountered in the course of parsing chunked encoding");
-        return;
-      case ERROR_WINHTTP_CLIENT_AUTH_CERT_NEEDED:
-        callback_("WinHttpReceiveResponse Error: The server requests "
-                  "client authentication");
-        return;
-      case ERROR_WINHTTP_CONNECTION_ERROR:
-        callback_("WinHttpReceiveResponse Error: The connection with the "
-                  "server has been reset or terminated, or an "
-                  "incompatible SSL protocol was encountered");
-        return;
-      case ERROR_WINHTTP_HEADER_COUNT_EXCEEDED:
-        callback_(
-            "WinHttpReceiveResponse Error: A larger number of headers were "
-            "present in a response than WinHTTP could receive");
-        return;
-      case ERROR_WINHTTP_HEADER_SIZE_OVERFLOW:
-        callback_("WinHttpReceiveResponse Error: The size of headers "
-                  "received exceeds the limit for the request handle");
-        return;
-      case ERROR_WINHTTP_INCORRECT_HANDLE_STATE:
-        callback_("WinHttpReceiveResponse Error: The requested operation "
-                  "cannot be carried out because the handle supplied is "
-                  "not in the correct state");
-        return;
-      case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
-        callback_("WinHttpReceiveResponse Error: The type of handle "
-                  "supplied is incorrect for this operation");
-        return;
-      case ERROR_WINHTTP_INTERNAL_ERROR:
-        callback_(
-            "WinHttpReceiveResponse Error: An internal error has occurred");
-        return;
-      case ERROR_WINHTTP_INVALID_SERVER_RESPONSE:
-        callback_("WinHttpReceiveResponse Error: The server response "
-                  "could not be parsed");
-        return;
-      case ERROR_WINHTTP_INVALID_URL:
-        callback_("WinHttpReceiveResponse Error: The URL is invalid");
-        return;
-      case ERROR_WINHTTP_LOGIN_FAILURE:
-        callback_("WinHttpReceiveResponse Error: The login attempt failed");
-        return;
-      case ERROR_WINHTTP_NAME_NOT_RESOLVED:
-        callback_("WinHttpReceiveResponse Error: The server name could "
-                  "not be resolved");
-        return;
-      case ERROR_WINHTTP_OPERATION_CANCELLED:
-        callback_(
-            "WinHttpReceiveResponse Error: The operation was canceled, usually "
-            "because the handle on which the request was operating was closed "
-            "before the operation completed");
-        return;
-      case ERROR_WINHTTP_REDIRECT_FAILED:
-        callback_("WinHttpReceiveResponse Error: The redirection failed "
-                  "because either the scheme changed or all attempts "
-                  "made to redirect failed");
-        return;
-      case ERROR_WINHTTP_RESEND_REQUEST:
-        // TODO(RaisinTen): Resend the request.
-        callback_("WinHttpReceiveResponse Error: Resend request");
-        return;
-      case ERROR_WINHTTP_RESPONSE_DRAIN_OVERFLOW:
-        callback_("WinHttpReceiveResponse Error: An incoming response "
-                  "exceeds an internal WinHTTP size limit");
-        return;
-      case ERROR_WINHTTP_SECURE_FAILURE:
-        callback_(
-            "WinHttpReceiveResponse Error: One or more errors were found in "
-            "the Secure Sockets Layer (SSL) certificate sent by the server");
-        return;
-      case ERROR_WINHTTP_TIMEOUT:
-        callback_("WinHttpReceiveResponse Error: The request has timed out");
-        return;
-      case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
-        callback_("WinHttpReceiveResponse Error: The URL specified a "
-                  "scheme other than \"http:\" or \"https:\"");
-        return;
-      case ERROR_NOT_ENOUGH_MEMORY:
-        callback_("WinHttpReceiveResponse Error: Not enough memory was "
-                  "available to complete the requested operation");
-        return;
-      }
-      callback_("WinHttpReceiveResponse Error: " + std::to_string(err));
+      callback_("WinHttpReceiveResponse Error: " + error_message(err));
       return;
     }
   }
@@ -423,29 +216,7 @@ private:
             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, nullptr,
             &dwStatusCode, &lpdwBufferLength, nullptr) == FALSE) {
       DWORD err = GetLastError();
-      switch (err) {
-      case ERROR_WINHTTP_HEADER_NOT_FOUND:
-        callback_("WinHttpQueryHeaders Error: The requested header could "
-                  "not be located");
-        return;
-      case ERROR_WINHTTP_INCORRECT_HANDLE_STATE:
-        callback_("WinHttpQueryHeaders Error: The requested operation "
-                  "cannot be carried out because the handle supplied is "
-                  "not in the correct state");
-        return;
-      case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
-        callback_("WinHttpQueryHeaders Error: The type of handle "
-                  "supplied is incorrect for this operation");
-        return;
-      case ERROR_WINHTTP_INTERNAL_ERROR:
-        callback_("WinHttpQueryHeaders Error: An internal error has occurred");
-        return;
-      case ERROR_NOT_ENOUGH_MEMORY:
-        callback_("WinHttpQueryHeaders Error: Not enough memory was "
-                  "available to complete the requested operation");
-        return;
-      }
-      callback_("WinHttpQueryHeaders Error: " + std::to_string(err));
+      callback_("WinHttpQueryHeaders Error: " + error_message(err));
       return;
     }
     status_ = dwStatusCode;
@@ -455,40 +226,7 @@ private:
     // Triggers the WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE completion callback.
     if (WinHttpQueryDataAvailable(request_.Get(), nullptr) == FALSE) {
       DWORD err = GetLastError();
-      switch (err) {
-      case ERROR_WINHTTP_CONNECTION_ERROR:
-        callback_("WinHttpQueryDataAvailable Error: The connection "
-                  "with the server has been reset or terminated, or an "
-                  "incompatible SSL protocol was encountered");
-        return;
-      case ERROR_WINHTTP_INCORRECT_HANDLE_STATE:
-        callback_("WinHttpQueryDataAvailable Error: The requested operation "
-                  "cannot be carried out because the handle supplied is "
-                  "not in the correct state");
-        return;
-      case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
-        callback_("WinHttpQueryDataAvailable Error: The type of handle "
-                  "supplied is incorrect for this operation");
-        return;
-      case ERROR_WINHTTP_INTERNAL_ERROR:
-        callback_("WinHttpQueryDataAvailable Error: An internal error "
-                  "has occurred");
-        return;
-      case ERROR_WINHTTP_OPERATION_CANCELLED:
-        callback_(
-            "WinHttpQueryDataAvailable Error: The operation was canceled, "
-            "usually because the handle on which the request was operating "
-            "was closed before the operation complete");
-        return;
-      case ERROR_WINHTTP_TIMEOUT:
-        callback_("WinHttpQueryDataAvailable Error: The request has timed out");
-        return;
-      case ERROR_NOT_ENOUGH_MEMORY:
-        callback_("WinHttpQueryDataAvailable Error: Not enough memory was "
-                  "available to complete the requested operation");
-        return;
-      }
-      callback_("WinHttpQueryDataAvailable Error: " + std::to_string(err));
+      callback_("WinHttpQueryDataAvailable Error: " + error_message(err));
       return;
     }
   }
@@ -507,44 +245,7 @@ private:
       if (WinHttpReadData(request_.Get(), lpOutBuffer.get(), dwSize_,
                           nullptr) == FALSE) {
         DWORD err = GetLastError();
-        switch (err) {
-        case ERROR_WINHTTP_CONNECTION_ERROR:
-          callback_("WinHttpReadData Error: The connection "
-                    "with the server has been reset or terminated, or an "
-                    "incompatible SSL protocol was encountered");
-          return;
-        case ERROR_WINHTTP_INCORRECT_HANDLE_STATE:
-          callback_("WinHttpReadData Error: The requested operation "
-                    "cannot be carried out because the handle supplied is "
-                    "not in the correct state");
-          return;
-        case ERROR_WINHTTP_INCORRECT_HANDLE_TYPE:
-          callback_("WinHttpReadData Error: The type of handle "
-                    "supplied is incorrect for this operation");
-          return;
-        case ERROR_WINHTTP_INTERNAL_ERROR:
-          callback_("WinHttpReadData Error: An internal error "
-                    "has occurred");
-          return;
-        case ERROR_WINHTTP_OPERATION_CANCELLED:
-          callback_(
-              "WinHttpReadData Error: The operation was canceled, "
-              "usually because the handle on which the request was operating "
-              "was closed before the operation complete");
-          return;
-        case ERROR_WINHTTP_RESPONSE_DRAIN_OVERFLOW:
-          callback_("WinHttpReadData Error: An incoming response exceeds "
-                    "an internal WinHTTP size limit");
-          return;
-        case ERROR_WINHTTP_TIMEOUT:
-          callback_("WinHttpReadData Error: The request has timed out");
-          return;
-        case ERROR_NOT_ENOUGH_MEMORY:
-          callback_("WinHttpReadData Error: Not enough memory was "
-                    "available to complete the requested operation");
-          return;
-        }
-        callback_("WinHttpReadData Error: " + std::to_string(err));
+        callback_("WinHttpReadData Error: " + error_message(err));
         return;
       }
 
