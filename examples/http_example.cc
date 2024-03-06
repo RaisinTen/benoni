@@ -1,5 +1,9 @@
 #include <http.h>
 
+#if defined(linux)
+#include <glib.h>
+#endif
+
 #include <iostream>
 #include <variant>
 
@@ -10,6 +14,8 @@ using req::RequestOptionsBuilder;
 using req::Response;
 
 int main() {
+  GMainLoop *loop = g_main_loop_new(nullptr, FALSE);
+
   std::cout << "before request" << std::endl;
 
   request("https://postman-echo.com/get", RequestOptionsBuilder{}.build(),
@@ -34,8 +40,13 @@ int main() {
 
   std::cout << "after request" << std::endl;
 
+#if defined(linux)
+  g_main_loop_run(loop);
+  g_main_loop_unref(loop);
+#else
   while (true)
     ;
+#endif
 
   return 0;
 }
