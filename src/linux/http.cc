@@ -13,9 +13,12 @@ namespace req {
 namespace {
 
 struct AsyncHttpContext {
+  SoupMessage *message;
   std::array<uint8_t, 2048> buffer;
   std::stringstream response;
   std::function<void(std::variant<std::string, Response>)> callback;
+
+  ~AsyncHttpContext() { g_object_unref(message); }
 };
 
 auto stream_close_callback(GObject *source_object, GAsyncResult *res,
@@ -36,10 +39,14 @@ auto stream_close_callback(GObject *source_object, GAsyncResult *res,
 
   g_object_unref(stream);
 
-  std::string response = async_http_context->response.str();
+  Response response {
+    .body = async_http_context->response.str();
+    .status = static_cast<uint16_t>(async_http_context->message->status_code),
+    .headers = {}
+  };
   auto callback = std::move(async_http_context->callback);
   delete async_http_context;
-  callback(Response{.body = std::move(response), .status = 0, .headers = {}});
+  callback(std::move(response));
 }
 
 auto stream_read_callback(GObject *source_object, GAsyncResult *res,
@@ -104,12 +111,14 @@ auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void {
   SoupSession *session = soup_session_new();
-  SoupMessage *msg = soup_message_new("GET", "https://postman-echo.com/get");
 
   auto async_http_context = new AsyncHttpContext{};
+  async_http_context->message =
+      soup_message_new("GET", "https://postman-echo.com/get");
   async_http_context->callback = std::move(callback);
-  soup_session_send_async(session, msg, G_PRIORITY_DEFAULT,
-                          session_send_callback, async_http_context);
+  soup_session_send_async(session, async_http_context->message,
+                          G_PRIORITY_DEFAULT, session_send_callback,
+                          async_http_context);
 }
 
 } // namespace req
