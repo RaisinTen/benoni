@@ -14,7 +14,9 @@ using req::RequestOptionsBuilder;
 using req::Response;
 
 int main() {
+#if defined(linux)
   GMainLoop *loop = g_main_loop_new(nullptr, FALSE);
+#endif
 
   std::cout << "before request" << std::endl;
 
