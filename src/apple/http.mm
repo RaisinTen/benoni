@@ -6,11 +6,182 @@
 #include <string>  // std::string
 #include <variant> // std::variant
 
+namespace {
+
+struct HTTPTaskContext {
+  std::function<void(std::variant<std::string, req::Response>)> callback;
+  uint16_t status;
+  std::map<std::string, std::string> headers;
+  NSMutableData *data;
+  NSStringEncoding encoding;
+};
+
+} // namespace
+
+@interface ReqHTTPTaskContextWrap : NSObject
+@property HTTPTaskContext *context;
+- (ReqHTTPTaskContextWrap *)initWithContext:(HTTPTaskContext *)context;
+- (void)dealloc;
+@end
+
+@implementation ReqHTTPTaskContextWrap
+@synthesize context;
+
+- (ReqHTTPTaskContextWrap *)initWithContext:(HTTPTaskContext *)contextObject {
+  self = [super init];
+  if (self == nil) {
+    return self;
+  }
+  context = contextObject;
+  return self;
+}
+
+- (void)dealloc {
+  delete context;
+  [super dealloc];
+}
+@end
+
+@interface ReqHTTPSessionDelegate
+    : NSObject <NSURLSessionDelegate, NSURLSessionTaskDelegate>
+@property(readonly)
+    NSMutableDictionary<NSNumber *, ReqHTTPTaskContextWrap *> *contextMap;
+- (ReqHTTPSessionDelegate *)init;
+
+#pragma mark - NSURLSessionDataDelegate
+- (void)URLSession:(NSURLSession *)session
+              dataTask:(NSURLSessionDataTask *)dataTask
+    didReceiveResponse:(NSURLResponse *)response
+     completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))
+                           completionHandler;
+
+- (void)URLSession:(NSURLSession *)session
+          dataTask:(NSURLSessionDataTask *)dataTask
+    didReceiveData:(NSData *)data;
+
+#pragma mark - NSURLSessionTaskDelegate
+- (void)URLSession:(NSURLSession *)session
+                    task:(NSURLSessionTask *)task
+    didCompleteWithError:(NSError *)error;
+@end
+
+@implementation ReqHTTPSessionDelegate
+@synthesize contextMap = contextMap_;
+- (ReqHTTPSessionDelegate *)init {
+  self = [super init];
+  if (self == nil) {
+    return self;
+  }
+  contextMap_ = [[NSMutableDictionary alloc] init];
+  return self;
+}
+
+#pragma mark - NSURLSessionDataDelegate
+- (void)URLSession:(NSURLSession *)session
+              dataTask:(NSURLSessionDataTask *)dataTask
+    didReceiveResponse:(NSURLResponse *)response
+     completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))
+                           completionHandler {
+  NSNumber *key =
+      [NSNumber numberWithUnsignedLongLong:[dataTask taskIdentifier]];
+  ReqHTTPTaskContextWrap *contextWrap = contextMap_[key];
+  HTTPTaskContext *context = [contextWrap context];
+
+  NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+  if ([httpResponse respondsToSelector:@selector(allHeaderFields)]) {
+    auto &headers = context->headers;
+    NSDictionary *allHeaderFields = [httpResponse allHeaderFields];
+    for (NSString *key in allHeaderFields) {
+      headers[[key UTF8String]] =
+          [[allHeaderFields objectForKey:key] UTF8String];
+    }
+  }
+
+  context->status = [httpResponse statusCode];
+
+  context->encoding = NSUTF8StringEncoding;
+  NSString *encodingName = [httpResponse textEncodingName];
+  if (encodingName) {
+    NSStringEncoding encoding = CFStringConvertEncodingToNSStringEncoding(
+        CFStringConvertIANACharSetNameToEncoding((CFStringRef)encodingName));
+
+    if (encoding != kCFStringEncodingInvalidId) {
+      context->encoding = encoding;
+    }
+  }
+
+  completionHandler(NSURLSessionResponseAllow);
+}
+
+- (void)URLSession:(NSURLSession *)session
+          dataTask:(NSURLSessionDataTask *)dataTask
+    didReceiveData:(NSData *)data {
+  NSNumber *key =
+      [NSNumber numberWithUnsignedLongLong:[dataTask taskIdentifier]];
+  ReqHTTPTaskContextWrap *contextWrap = contextMap_[key];
+  HTTPTaskContext *context = [contextWrap context];
+
+  if (context->data == nil) {
+    context->data = [[NSMutableData data] retain];
+  }
+
+  [context->data appendData:data];
+}
+
+#pragma mark - NSURLSessionTaskDelegate
+- (void)URLSession:(NSURLSession *)session
+                    task:(NSURLSessionTask *)task
+    didCompleteWithError:(NSError *)error {
+  NSNumber *key = [NSNumber numberWithUnsignedLongLong:[task taskIdentifier]];
+  ReqHTTPTaskContextWrap *contextWrap = contextMap_[key];
+  HTTPTaskContext *context = [contextWrap context];
+  auto callback = std::move(context->callback);
+
+  if (error) {
+    std::string error_string([[error localizedDescription] UTF8String]);
+    [contextWrap dealloc];
+    callback(std::move(error_string));
+    return;
+  }
+
+  // TODO(RaisinTen): Should we use enumerateByteRangesUsingBlock: here?
+  // See -
+  // https://developer.apple.com/documentation/foundation/nsurlsessiondatadelegate/1411528-urlsession#discussion
+  NSString *responseString = [[NSString alloc] initWithData:context->data
+                                                   encoding:context->encoding];
+  [context->data release];
+
+  if (responseString == nil) {
+    std::string error_string("response body has invalid encoding");
+    [contextWrap dealloc];
+    callback(std::move(error_string));
+    return;
+  }
+
+  std::string body{[responseString UTF8String]};
+
+  req::Response response{
+      .body = std::move(body),
+      .status = context->status,
+      .headers = std::move(context->headers),
+  };
+  [contextWrap dealloc];
+  callback(response);
+}
+@end
+
 namespace req {
 
 auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void {
+  ReqHTTPSessionDelegate *delegate = [[ReqHTTPSessionDelegate alloc] init];
+  NSURLSession *session =
+      [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration
+                                                 defaultSessionConfiguration]
+                                    delegate:delegate
+                               delegateQueue:nil];
+
   NSMutableURLRequest *request = [[NSMutableURLRequest alloc] init];
 
   [request
@@ -47,58 +218,17 @@ auto request(const std::string &url, RequestOptions options,
     [request setTimeoutInterval:options.timeout().value()];
   }
 
-  [[[NSURLSession sharedSession]
-      dataTaskWithRequest:request
-        completionHandler:[callback](NSData *_Nullable data,
-                                     NSURLResponse *_Nullable response,
-                                     NSError *_Nullable error) {
-          // This completionHandler is run in a background thread.
-
-          std::variant<std::string, Response> result;
-
-          if (error != nil) {
-            result = std::string([[error localizedDescription] UTF8String]);
-          } else {
-            NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
-
-            NSStringEncoding usedEncoding = NSUTF8StringEncoding;
-            NSString *encodingName = [httpResponse textEncodingName];
-            if (encodingName) {
-              NSStringEncoding encoding =
-                  CFStringConvertEncodingToNSStringEncoding(
-                      CFStringConvertIANACharSetNameToEncoding(
-                          (CFStringRef)encodingName));
-
-              if (encoding != kCFStringEncodingInvalidId) {
-                usedEncoding = encoding;
-              }
-            }
-
-            NSString *responseString =
-                [[NSString alloc] initWithData:data encoding:usedEncoding];
-
-            if (responseString == nil) {
-              result = "response body has invalid encoding";
-            } else {
-              std::map<std::string, std::string> headers;
-              if ([httpResponse
-                      respondsToSelector:@selector(allHeaderFields)]) {
-                NSDictionary *allHeaderFields = [httpResponse allHeaderFields];
-                for (NSString *key in allHeaderFields) {
-                  headers[[key UTF8String]] =
-                      [[allHeaderFields objectForKey:key] UTF8String];
-                }
-              }
-
-              result =
-                  Response{std::string([responseString UTF8String]),
-                           static_cast<uint16_t>([httpResponse statusCode]),
-                           std::move(headers)};
-            }
-          }
-
-          callback(std::move(result));
-        }] resume];
+  NSURLSessionDataTask *data_task = [session dataTaskWithRequest:request];
+  NSMutableDictionary<NSNumber *, ReqHTTPTaskContextWrap *> *contextMap =
+      [delegate contextMap];
+  auto *context{new HTTPTaskContext{.callback = std::move(callback)}};
+  ReqHTTPTaskContextWrap *contextWrap =
+      [[ReqHTTPTaskContextWrap alloc] initWithContext:context];
+  [contextMap
+      setObject:contextWrap
+         forKey:[NSNumber
+                    numberWithUnsignedLongLong:[data_task taskIdentifier]]];
+  [data_task resume];
 }
 
 } // namespace req
