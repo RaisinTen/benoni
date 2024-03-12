@@ -33,9 +33,14 @@ int main() {
 
             Response response{std::get<Response>(result)};
 
-            std::cout << "response body: [" << response.body << "]"
-                      << std::endl;
             std::cout << "response status: [" << response.status << "]"
+                      << std::endl;
+            std::cout << "response headers: [" << std::endl;
+            for (const auto &[key, value] : response.headers) {
+              std::cout << "  [" << key << "]: [" << value << "]," << std::endl;
+            }
+            std::cout << "]" << std::endl;
+            std::cout << "response body: [" << response.body << "]"
                       << std::endl;
             exit(EXIT_SUCCESS);
           });
