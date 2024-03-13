@@ -144,14 +144,23 @@ struct HTTPTaskContext {
     return;
   }
 
-  // TODO(RaisinTen): Should we use enumerateByteRangesUsingBlock: here?
-  // See -
-  // https://developer.apple.com/documentation/foundation/nsurlsessiondatadelegate/1411528-urlsession#discussion
-  NSString *responseString = [[NSString alloc] initWithData:context->data
-                                                   encoding:context->encoding];
+  NSMutableString *responseString = [NSMutableString string];
+  __block BOOL success = YES;
+  [context->data enumerateByteRangesUsingBlock:^(
+                     const void *bytes, NSRange byteRange, BOOL *stop) {
+    NSString *chunk = [[NSString alloc] initWithBytes:bytes
+                                               length:byteRange.length
+                                             encoding:context->encoding];
+    if (chunk == nil) {
+      *stop = YES;
+      success = NO;
+      return;
+    }
+    [responseString appendString:chunk];
+  }];
   [context->data release];
 
-  if (responseString == nil) {
+  if (success == NO) {
     std::string error_string("response body has invalid encoding");
     [contextWrap dealloc];
     callback(std::move(error_string));
