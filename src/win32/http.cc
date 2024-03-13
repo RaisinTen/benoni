@@ -135,11 +135,45 @@ class Request {
 public:
   Request(
       const std::function<void(std::variant<std::string, Response>)> &callback,
-      HINTERNET hConnection, std::wstring path)
-      // Create an HTTP request handle.
-      : hRequest_{WinHttpOpenRequest(
-            hConnection, L"GET", path.c_str(), NULL, WINHTTP_NO_REFERER,
-            WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE)} {
+      HINTERNET hConnection, std::wstring path, Method method) {
+    const wchar_t *method_string = nullptr;
+    switch (method) {
+    case Method::GET:
+      method_string = L"GET";
+      break;
+    case Method::HEAD:
+      method_string = L"HEAD";
+      break;
+    case Method::POST:
+      method_string = L"POST";
+      break;
+    case Method::PUT:
+      method_string = L"PUT";
+      break;
+    case Method::CONNECT:
+      method_string = L"CONNECT";
+      break;
+    case Method::OPTIONS:
+      method_string = L"OPTIONS";
+      break;
+    case Method::TRACE:
+      method_string = L"TRACE";
+      break;
+    case Method::PATCH:
+      method_string = L"PATCH";
+      break;
+    default:
+      // Method::DELETE is assumed in the default case because MSVC cannot
+      // handle "DELETE" as the name of an enum. It causes this compilation
+      // error: C2589: '(': illegal token on right side of '::'.
+      method_string = L"DELETE";
+      break;
+    }
+
+    // Create an HTTP request handle.
+    hRequest_ = WinHttpOpenRequest(
+        hConnection, method_string, path.c_str(), NULL, WINHTTP_NO_REFERER,
+        WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
     if (hRequest_ != nullptr) {
       return;
     }
@@ -159,19 +193,19 @@ private:
 class HTTPClient {
 public:
   static auto
-  Req(std::string url,
+  Req(std::string url, Method method,
       std::function<void(std::variant<std::string, Response>)> callback)
       -> void {
-    new HTTPClient{std::move(url), std::move(callback)};
+    new HTTPClient{std::move(url), method, std::move(callback)};
   }
 
 private:
-  HTTPClient(std::string url,
+  HTTPClient(std::string url, Method method,
              std::function<void(std::variant<std::string, Response>)> callback)
       : callback_{std::move(callback)}, url_{callback_, std::move(url)},
         session_{callback_},
         connection_{callback_, session_.Get(), url_.hostname()},
-        request_{callback_, connection_.Get(), url_.path()}, status_{},
+        request_{callback_, connection_.Get(), url_.path(), method}, status_{},
         dwSize_{}, body_{} {
     DWORD_PTR option_context = reinterpret_cast<DWORD_PTR>(this);
     if (WinHttpSetOption(request_.Get(), WINHTTP_OPTION_CONTEXT_VALUE,
@@ -356,7 +390,7 @@ private:
 auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void {
-  HTTPClient::Req(url, std::move(callback));
+  HTTPClient::Req(url, options.method(), std::move(callback));
 }
 
 } // namespace req
