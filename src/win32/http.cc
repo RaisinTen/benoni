@@ -44,6 +44,45 @@ std::string error_message(int errorCode) {
   return buffer;
 }
 
+class URL {
+public:
+  URL(const std::function<void(std::variant<std::string, Response>)> &callback,
+      std::string url)
+      : url_{url.begin(), url.end()} {
+    // Initialize the URL_COMPONENTS structure.
+    ZeroMemory(&urlComp_, sizeof(urlComp_));
+    urlComp_.dwStructSize = sizeof(urlComp_);
+
+    // Set required component lengths to non-zero, so that they are cracked.
+    urlComp_.dwSchemeLength = (DWORD)-1;
+    urlComp_.dwHostNameLength = (DWORD)-1;
+    urlComp_.dwUrlPathLength = (DWORD)-1;
+    urlComp_.dwExtraInfoLength = (DWORD)-1;
+
+    if (WinHttpCrackUrl(url_.c_str(), url_.length(), 0, &urlComp_) == FALSE) {
+      DWORD err = GetLastError();
+      callback("WinHttpCrackUrl Error: " + error_message(err));
+      return;
+    }
+  }
+
+  auto hostname() -> std::wstring const {
+    return {urlComp_.lpszHostName, urlComp_.dwHostNameLength};
+  }
+
+  auto path() -> std::wstring const {
+    return {urlComp_.lpszUrlPath, urlComp_.dwUrlPathLength};
+  }
+
+  auto extra() -> std::wstring const {
+    return {urlComp_.lpszExtraInfo, urlComp_.dwExtraInfoLength};
+  }
+
+private:
+  std::wstring url_;
+  URL_COMPONENTS urlComp_;
+};
+
 class Session {
 public:
   Session(
@@ -72,9 +111,9 @@ class Connection {
 public:
   Connection(
       const std::function<void(std::variant<std::string, Response>)> &callback,
-      HINTERNET hSession)
+      HINTERNET hSession, std::wstring hostname)
       // Specify an HTTP server.
-      : hConnection_{WinHttpConnect(hSession, L"www.postman-echo.com",
+      : hConnection_{WinHttpConnect(hSession, hostname.c_str(),
                                     INTERNET_DEFAULT_HTTPS_PORT, 0)} {
     if (hConnection_ != nullptr) {
       return;
@@ -96,10 +135,10 @@ class Request {
 public:
   Request(
       const std::function<void(std::variant<std::string, Response>)> &callback,
-      HINTERNET hConnection)
+      HINTERNET hConnection, std::wstring path)
       // Create an HTTP request handle.
       : hRequest_{WinHttpOpenRequest(
-            hConnection, L"GET", L"/get", NULL, WINHTTP_NO_REFERER,
+            hConnection, L"GET", path.c_str(), NULL, WINHTTP_NO_REFERER,
             WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE)} {
     if (hRequest_ != nullptr) {
       return;
@@ -120,16 +159,20 @@ private:
 class HTTPClient {
 public:
   static auto
-  Req(std::function<void(std::variant<std::string, Response>)> callback)
+  Req(std::string url,
+      std::function<void(std::variant<std::string, Response>)> callback)
       -> void {
-    new HTTPClient{std::move(callback)};
+    new HTTPClient{std::move(url), std::move(callback)};
   }
 
 private:
-  HTTPClient(std::function<void(std::variant<std::string, Response>)> callback)
-      : callback_{std::move(callback)}, session_{callback_},
-        connection_{callback_, session_.Get()},
-        request_{callback_, connection_.Get()}, status_{}, dwSize_{}, body_{} {
+  HTTPClient(std::string url,
+             std::function<void(std::variant<std::string, Response>)> callback)
+      : callback_{std::move(callback)}, url_{callback_, std::move(url)},
+        session_{callback_},
+        connection_{callback_, session_.Get(), url_.hostname()},
+        request_{callback_, connection_.Get(), url_.path()}, status_{},
+        dwSize_{}, body_{} {
     DWORD_PTR option_context = reinterpret_cast<DWORD_PTR>(this);
     if (WinHttpSetOption(request_.Get(), WINHTTP_OPTION_CONTEXT_VALUE,
                          &option_context, sizeof(option_context)) == FALSE) {
@@ -297,6 +340,8 @@ private:
 
   std::function<void(std::variant<std::string, Response>)> callback_;
 
+  URL url_;
+
   Session session_;
   Connection connection_;
   Request request_;
@@ -311,7 +356,7 @@ private:
 auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void {
-  HTTPClient::Req(std::move(callback));
+  HTTPClient::Req(url, std::move(callback));
 }
 
 } // namespace req
