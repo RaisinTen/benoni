@@ -39,11 +39,10 @@ auto stream_close_callback(GObject *source_object, GAsyncResult *res,
 
   g_object_unref(stream);
 
-  Response response {
-    .body = async_http_context->response.str(),
-    .status = static_cast<uint16_t>(async_http_context->message->status_code),
-    .headers = {}
-  };
+  Response response{
+      .body = async_http_context->response.str(),
+      .status = static_cast<uint16_t>(async_http_context->message->status_code),
+      .headers = {}};
   auto callback = std::move(async_http_context->callback);
   delete async_http_context;
   callback(std::move(response));
@@ -84,8 +83,8 @@ auto stream_read_callback(GObject *source_object, GAsyncResult *res,
                             async_http_context);
 }
 
-auto session_send_callback(GObject *object, GAsyncResult *result,
-                           gpointer data) -> void {
+auto session_send_callback(GObject *object, GAsyncResult *result, gpointer data)
+    -> void {
   auto async_http_context = static_cast<AsyncHttpContext *>(data);
 
   GError *error = nullptr;
@@ -110,11 +109,25 @@ auto session_send_callback(GObject *object, GAsyncResult *result,
 auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void {
-  SoupSession *session = soup_session_new();
+  const char *method = nullptr;
+  switch (options.method()) {
+#define V(HTTP_METHOD)                                                         \
+  case Method::HTTP_METHOD:                                                    \
+    method = #HTTP_METHOD;                                                     \
+    break;
 
+    REQ_HTTP_METHODS(V)
+#undef V
+  }
+  SoupMessage *message = soup_message_new(method, url.c_str());
+  if (message == nullptr) {
+    callback("The uri could not be parsed");
+    return;
+  }
+
+  SoupSession *session = soup_session_new();
   auto async_http_context = new AsyncHttpContext{};
-  async_http_context->message =
-      soup_message_new("GET", "https://postman-echo.com/get");
+  async_http_context->message = message;
   async_http_context->callback = std::move(callback);
   soup_session_send_async(session, async_http_context->message,
                           G_PRIORITY_DEFAULT, session_send_callback,
