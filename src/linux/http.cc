@@ -93,8 +93,8 @@ auto stream_read_callback(GObject *source_object, GAsyncResult *res,
                             async_http_context);
 }
 
-auto session_send_callback(GObject *object, GAsyncResult *result, gpointer data)
-    -> void {
+auto session_send_callback(GObject *object, GAsyncResult *result,
+                           gpointer data) -> void {
   auto async_http_context = static_cast<AsyncHttpContext *>(data);
 
   GError *error = nullptr;
