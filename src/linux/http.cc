@@ -40,7 +40,7 @@ auto stream_close_callback(GObject *source_object, GAsyncResult *res,
   g_object_unref(stream);
 
   Response response {
-    .body = async_http_context->response.str();
+    .body = async_http_context->response.str(),
     .status = static_cast<uint16_t>(async_http_context->message->status_code),
     .headers = {}
   };
