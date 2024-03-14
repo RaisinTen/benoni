@@ -66,6 +66,10 @@ public:
     }
   }
 
+  auto scheme() -> std::wstring const {
+    return {urlComp_.lpszScheme, urlComp_.dwSchemeLength};
+  }
+
   auto hostname() -> std::wstring const {
     return {urlComp_.lpszHostName, urlComp_.dwHostNameLength};
   }
@@ -114,7 +118,7 @@ public:
       HINTERNET hSession, std::wstring hostname)
       // Specify an HTTP server.
       : hConnection_{WinHttpConnect(hSession, hostname.c_str(),
-                                    INTERNET_DEFAULT_HTTPS_PORT, 0)} {
+                                    INTERNET_DEFAULT_PORT, 0)} {
     if (hConnection_ != nullptr) {
       return;
     }
@@ -135,7 +139,8 @@ class Request {
 public:
   Request(
       const std::function<void(std::variant<std::string, Response>)> &callback,
-      HINTERNET hConnection, std::wstring path, Method method) {
+      HINTERNET hConnection, std::wstring scheme, std::wstring path,
+      Method method) {
     const wchar_t *method_string = nullptr;
     switch (method) {
     case Method::GET:
@@ -171,9 +176,10 @@ public:
     }
 
     // Create an HTTP request handle.
-    hRequest_ = WinHttpOpenRequest(
-        hConnection, method_string, path.c_str(), NULL, WINHTTP_NO_REFERER,
-        WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    hRequest_ =
+        WinHttpOpenRequest(hConnection, method_string, path.c_str(), NULL,
+                           WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                           (scheme == L"https" ? WINHTTP_FLAG_SECURE : 0));
     if (hRequest_ != nullptr) {
       return;
     }
@@ -205,8 +211,9 @@ private:
       : callback_{std::move(callback)}, url_{callback_, std::move(url)},
         session_{callback_},
         connection_{callback_, session_.Get(), url_.hostname()},
-        request_{callback_, connection_.Get(), url_.path(), method}, status_{},
-        headers_{}, dwSize_{}, body_{} {
+        request_{callback_, connection_.Get(), url_.scheme(), url_.path(),
+                 method},
+        status_{}, headers_{}, dwSize_{}, body_{} {
     DWORD_PTR option_context = reinterpret_cast<DWORD_PTR>(this);
     if (WinHttpSetOption(request_.Get(), WINHTTP_OPTION_CONTEXT_VALUE,
                          &option_context, sizeof(option_context)) == FALSE) {
