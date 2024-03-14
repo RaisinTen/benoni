@@ -206,7 +206,7 @@ private:
         session_{callback_},
         connection_{callback_, session_.Get(), url_.hostname()},
         request_{callback_, connection_.Get(), url_.path(), method}, status_{},
-        dwSize_{}, body_{} {
+        headers_{}, dwSize_{}, body_{} {
     DWORD_PTR option_context = reinterpret_cast<DWORD_PTR>(this);
     if (WinHttpSetOption(request_.Get(), WINHTTP_OPTION_CONTEXT_VALUE,
                          &option_context, sizeof(option_context)) == FALSE) {
@@ -299,6 +299,39 @@ private:
     status_ = dwStatusCode;
   }
 
+  auto capture_headers() -> void {
+    WINHTTP_EXTENDED_HEADER *pHeaders = nullptr;
+    DWORD dwHeadersCount = 0;
+
+    DWORD dwBufferLength = 0;
+    DWORD ret = WinHttpQueryHeadersEx(
+        request_.Get(),
+        WINHTTP_QUERY_EX_ALL_HEADERS | WINHTTP_QUERY_FLAG_WIRE_ENCODING, 0, 0,
+        nullptr, nullptr, nullptr, &dwBufferLength, &pHeaders, &dwHeadersCount);
+    if (ret != ERROR_INSUFFICIENT_BUFFER) {
+      DWORD err = ret;
+      callback_("WinHttpQueryHeadersEx Error: " + error_message(err));
+      return;
+    }
+
+    std::unique_ptr<char[]> buffer{std::make_unique<char[]>(dwBufferLength)};
+
+    ret = WinHttpQueryHeadersEx(request_.Get(),
+                                WINHTTP_QUERY_EX_ALL_HEADERS |
+                                    WINHTTP_QUERY_FLAG_WIRE_ENCODING,
+                                0, 0, nullptr, nullptr, buffer.get(),
+                                &dwBufferLength, &pHeaders, &dwHeadersCount);
+    if (ret != 0) {
+      DWORD err = ret;
+      callback_("WinHttpQueryHeadersEx Error: " + error_message(err));
+      return;
+    }
+
+    for (DWORD i = 0; i < dwHeadersCount; ++i) {
+      headers_[pHeaders[i].pszName] = pHeaders[i].pszValue;
+    }
+  }
+
   auto query_data() -> void {
     // Triggers the WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE completion callback.
     if (WinHttpQueryDataAvailable(request_.Get(), nullptr) == FALSE) {
@@ -312,7 +345,7 @@ private:
     dwSize_ = dwSize;
     if (dwSize_ == 0) {
       // complete
-      callback_(Response{body_.str(), status_, {}});
+      callback_(Response{body_.str(), status_, std::move(headers_)});
       delete this;
       return;
     } else {
@@ -358,6 +391,7 @@ private:
       return;
     case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE:
       http_client->capture_status_code();
+      http_client->capture_headers();
       http_client->query_data();
       return;
     case WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE:
@@ -381,6 +415,7 @@ private:
   Request request_;
 
   uint16_t status_;
+  std::map<std::string, std::string> headers_;
   DWORD dwSize_;
   std::stringstream body_;
 };
