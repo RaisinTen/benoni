@@ -135,7 +135,8 @@ auto request(const std::string &url, RequestOptions options,
     return;
   }
 
-  SoupSession *session = soup_session_new();
+  SoupSession *session = soup_session_new_with_options(SOUP_SESSION_USER_AGENT,
+                                                       "Req/1.0", nullptr);
   auto async_http_context = new AsyncHttpContext{};
   async_http_context->message = message;
   async_http_context->callback = std::move(callback);
