@@ -185,11 +185,12 @@ auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void {
   ReqHTTPSessionDelegate *delegate = [[ReqHTTPSessionDelegate alloc] init];
-  NSURLSession *session =
-      [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration
-                                                 defaultSessionConfiguration]
-                                    delegate:delegate
-                               delegateQueue:nil];
+  NSURLSessionConfiguration *configuration =
+      [NSURLSessionConfiguration defaultSessionConfiguration];
+  configuration.HTTPAdditionalHeaders = @{@"User-Agent" : @"Req/1.0"};
+  NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration
+                                                        delegate:delegate
+                                                   delegateQueue:nil];
 
   NSMutableURLRequest *request = [[NSMutableURLRequest alloc] init];
 
