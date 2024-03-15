@@ -7,11 +7,11 @@
 #include <iostream>
 #include <variant>
 
-using req::Method;
-using req::request;
-using req::RequestOptions;
-using req::RequestOptionsBuilder;
-using req::Response;
+using benoni::Method;
+using benoni::request;
+using benoni::RequestOptions;
+using benoni::RequestOptionsBuilder;
+using benoni::Response;
 
 int main() {
 #if defined(linux)

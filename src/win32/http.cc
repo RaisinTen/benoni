@@ -9,7 +9,7 @@
 #include <string>  // std::string
 #include <variant> // std::variant
 
-namespace req {
+namespace benoni {
 namespace {
 
 // Refs:
@@ -92,7 +92,8 @@ public:
   Session(
       const std::function<void(std::variant<std::string, Response>)> &callback)
       // Use WinHttpOpen to obtain a session handle.
-      : hSession_{WinHttpOpen(L"Req/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+      : hSession_{WinHttpOpen(L"Benoni/1.0",
+                              WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                               WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS,
                               WINHTTP_FLAG_ASYNC)} {
     if (hSession_ != nullptr) {
@@ -435,4 +436,4 @@ auto request(const std::string &url, RequestOptions options,
   HTTPClient::Req(url, options.method(), std::move(callback));
 }
 
-} // namespace req
+} // namespace benoni

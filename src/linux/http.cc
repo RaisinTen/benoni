@@ -9,7 +9,7 @@
 #include <string>  // std::string
 #include <variant> // std::variant
 
-namespace req {
+namespace benoni {
 namespace {
 
 struct AsyncHttpContext {
@@ -126,7 +126,7 @@ auto request(const std::string &url, RequestOptions options,
     method = #HTTP_METHOD;                                                     \
     break;
 
-    REQ_HTTP_METHODS(V)
+    BENONI_HTTP_METHODS(V)
 #undef V
   }
   SoupMessage *message = soup_message_new(method, url.c_str());
@@ -136,7 +136,7 @@ auto request(const std::string &url, RequestOptions options,
   }
 
   SoupSession *session = soup_session_new_with_options(SOUP_SESSION_USER_AGENT,
-                                                       "Req/1.0", nullptr);
+                                                       "Benoni/1.0", nullptr);
   auto async_http_context = new AsyncHttpContext{};
   async_http_context->message = message;
   async_http_context->callback = std::move(callback);
@@ -145,4 +145,4 @@ auto request(const std::string &url, RequestOptions options,
                           async_http_context);
 }
 
-} // namespace req
+} // namespace benoni

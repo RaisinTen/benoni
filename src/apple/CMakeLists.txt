@@ -1,5 +1,5 @@
-add_library(req STATIC http.mm)
+add_library(benoni STATIC http.mm)
 
-target_include_directories(req PUBLIC "${PROJECT_SOURCE_DIR}/include")
+target_include_directories(benoni PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
-target_link_libraries(req PUBLIC "-framework Foundation")
+target_link_libraries(benoni PUBLIC "-framework Foundation")

@@ -1,5 +1,5 @@
-#ifndef REQ_HTTP_H_
-#define REQ_HTTP_H_
+#ifndef BENONI_HTTP_H_
+#define BENONI_HTTP_H_
 
 #include <functional> // std::function
 #include <map>        // std::map
@@ -7,9 +7,9 @@
 #include <string>     // std::string
 #include <variant>    // std::variant
 
-namespace req {
+namespace benoni {
 
-#define REQ_HTTP_METHODS(V)                                                    \
+#define BENONI_HTTP_METHODS(V)                                                 \
   V(GET)                                                                       \
   V(HEAD)                                                                      \
   V(POST) V(PUT) V(DELETE) V(CONNECT) V(OPTIONS) V(TRACE) V(PATCH)
@@ -17,7 +17,7 @@ namespace req {
 enum class Method {
 #define V(HTTP_METHOD) HTTP_METHOD,
 
-  REQ_HTTP_METHODS(V)
+  BENONI_HTTP_METHODS(V)
 #undef V
 };
 
@@ -90,6 +90,6 @@ auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void;
 
-} // namespace req
+} // namespace benoni
 
 #endif

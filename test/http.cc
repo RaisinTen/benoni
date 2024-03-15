@@ -12,11 +12,11 @@
 
 #include <gtest/gtest.h> // TEST, ASSERT_NE, ASSERT_EQ
 
-using req::Method;
-using req::request;
-using req::RequestOptions;
-using req::RequestOptionsBuilder;
-using req::Response;
+using benoni::Method;
+using benoni::request;
+using benoni::RequestOptions;
+using benoni::RequestOptionsBuilder;
+using benoni::Response;
 
 namespace {
 

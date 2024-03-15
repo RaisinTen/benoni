@@ -9,7 +9,7 @@
 namespace {
 
 struct HTTPTaskContext {
-  std::function<void(std::variant<std::string, req::Response>)> callback;
+  std::function<void(std::variant<std::string, benoni::Response>)> callback;
   uint16_t status;
   std::map<std::string, std::string> headers;
   NSMutableData *data;
@@ -18,16 +18,17 @@ struct HTTPTaskContext {
 
 } // namespace
 
-@interface ReqHTTPTaskContextWrap : NSObject
+@interface BenoniHTTPTaskContextWrap : NSObject
 @property HTTPTaskContext *context;
-- (ReqHTTPTaskContextWrap *)initWithContext:(HTTPTaskContext *)context;
+- (BenoniHTTPTaskContextWrap *)initWithContext:(HTTPTaskContext *)context;
 - (void)dealloc;
 @end
 
-@implementation ReqHTTPTaskContextWrap
+@implementation BenoniHTTPTaskContextWrap
 @synthesize context;
 
-- (ReqHTTPTaskContextWrap *)initWithContext:(HTTPTaskContext *)contextObject {
+- (BenoniHTTPTaskContextWrap *)initWithContext:
+    (HTTPTaskContext *)contextObject {
   self = [super init];
   if (self == nil) {
     return self;
@@ -42,11 +43,11 @@ struct HTTPTaskContext {
 }
 @end
 
-@interface ReqHTTPSessionDelegate
+@interface BenoniHTTPSessionDelegate
     : NSObject <NSURLSessionDelegate, NSURLSessionTaskDelegate>
 @property(readonly)
-    NSMutableDictionary<NSNumber *, ReqHTTPTaskContextWrap *> *contextMap;
-- (ReqHTTPSessionDelegate *)init;
+    NSMutableDictionary<NSNumber *, BenoniHTTPTaskContextWrap *> *contextMap;
+- (BenoniHTTPSessionDelegate *)init;
 
 #pragma mark - NSURLSessionDataDelegate
 - (void)URLSession:(NSURLSession *)session
@@ -65,9 +66,9 @@ struct HTTPTaskContext {
     didCompleteWithError:(NSError *)error;
 @end
 
-@implementation ReqHTTPSessionDelegate
+@implementation BenoniHTTPSessionDelegate
 @synthesize contextMap = contextMap_;
-- (ReqHTTPSessionDelegate *)init {
+- (BenoniHTTPSessionDelegate *)init {
   self = [super init];
   if (self == nil) {
     return self;
@@ -84,7 +85,7 @@ struct HTTPTaskContext {
                            completionHandler {
   NSNumber *key =
       [NSNumber numberWithUnsignedLongLong:[dataTask taskIdentifier]];
-  ReqHTTPTaskContextWrap *contextWrap = contextMap_[key];
+  BenoniHTTPTaskContextWrap *contextWrap = contextMap_[key];
   HTTPTaskContext *context = [contextWrap context];
 
   NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
@@ -118,7 +119,7 @@ struct HTTPTaskContext {
     didReceiveData:(NSData *)data {
   NSNumber *key =
       [NSNumber numberWithUnsignedLongLong:[dataTask taskIdentifier]];
-  ReqHTTPTaskContextWrap *contextWrap = contextMap_[key];
+  BenoniHTTPTaskContextWrap *contextWrap = contextMap_[key];
   HTTPTaskContext *context = [contextWrap context];
 
   if (context->data == nil) {
@@ -133,7 +134,7 @@ struct HTTPTaskContext {
                     task:(NSURLSessionTask *)task
     didCompleteWithError:(NSError *)error {
   NSNumber *key = [NSNumber numberWithUnsignedLongLong:[task taskIdentifier]];
-  ReqHTTPTaskContextWrap *contextWrap = contextMap_[key];
+  BenoniHTTPTaskContextWrap *contextWrap = contextMap_[key];
   HTTPTaskContext *context = [contextWrap context];
   auto callback = std::move(context->callback);
 
@@ -169,7 +170,7 @@ struct HTTPTaskContext {
 
   std::string body{[responseString UTF8String]};
 
-  req::Response response{
+  benoni::Response response{
       .body = std::move(body),
       .status = context->status,
       .headers = std::move(context->headers),
@@ -179,15 +180,16 @@ struct HTTPTaskContext {
 }
 @end
 
-namespace req {
+namespace benoni {
 
 auto request(const std::string &url, RequestOptions options,
              std::function<void(std::variant<std::string, Response>)> callback)
     -> void {
-  ReqHTTPSessionDelegate *delegate = [[ReqHTTPSessionDelegate alloc] init];
+  BenoniHTTPSessionDelegate *delegate =
+      [[BenoniHTTPSessionDelegate alloc] init];
   NSURLSessionConfiguration *configuration =
       [NSURLSessionConfiguration defaultSessionConfiguration];
-  configuration.HTTPAdditionalHeaders = @{@"User-Agent" : @"Req/1.0"};
+  configuration.HTTPAdditionalHeaders = @{@"User-Agent" : @"Benoni/1.0"};
   NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration
                                                         delegate:delegate
                                                    delegateQueue:nil];
@@ -207,7 +209,7 @@ auto request(const std::string &url, RequestOptions options,
     [request setHTTPMethod:@ #HTTP_METHOD];                                    \
     break;
 
-    REQ_HTTP_METHODS(V)
+    BENONI_HTTP_METHODS(V)
 #undef V
   }
 
@@ -229,11 +231,11 @@ auto request(const std::string &url, RequestOptions options,
   }
 
   NSURLSessionDataTask *data_task = [session dataTaskWithRequest:request];
-  NSMutableDictionary<NSNumber *, ReqHTTPTaskContextWrap *> *contextMap =
+  NSMutableDictionary<NSNumber *, BenoniHTTPTaskContextWrap *> *contextMap =
       [delegate contextMap];
   auto *context{new HTTPTaskContext{.callback = std::move(callback)}};
-  ReqHTTPTaskContextWrap *contextWrap =
-      [[ReqHTTPTaskContextWrap alloc] initWithContext:context];
+  BenoniHTTPTaskContextWrap *contextWrap =
+      [[BenoniHTTPTaskContextWrap alloc] initWithContext:context];
   [contextMap
       setObject:contextWrap
          forKey:[NSNumber
@@ -241,4 +243,4 @@ auto request(const std::string &url, RequestOptions options,
   [data_task resume];
 }
 
-} // namespace req
+} // namespace benoni
