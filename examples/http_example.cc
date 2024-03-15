@@ -18,13 +18,13 @@ int main() {
   GMainLoop *loop = g_main_loop_new(nullptr, FALSE);
 #endif
 
-  std::cout << "before request" << std::endl;
+  std::string url{"https://postman-echo.com/get"};
+  std::cout << "sending request to: \"" << url << "\"" << std::endl;
 
-  request("https://postman-echo.com/get", RequestOptionsBuilder{}.build(),
+  request(std::move(url), RequestOptionsBuilder{}.build(),
           [](std::variant<std::string, Response> result) {
-            std::cout << "inside callback" << std::endl;
-
-            // This callback is run in a background thread.
+            // This callback is run in a background thread on Windows and Apple
+            // and on the main thread on Gtk Linux.
             if (std::holds_alternative<std::string>(result)) {
               std::cerr << "error: [" << std::get<std::string>(result) << "]"
                         << std::endl;
@@ -33,19 +33,17 @@ int main() {
 
             Response response{std::get<Response>(result)};
 
-            std::cout << "response status: [" << response.status << "]"
-                      << std::endl;
+            std::cout << "response status: " << response.status << std::endl;
             std::cout << "response headers: [" << std::endl;
             for (const auto &[key, value] : response.headers) {
-              std::cout << "  [" << key << "]: [" << value << "]," << std::endl;
+              std::cout << "  \"" << key << "\": \"" << value << "\","
+                        << std::endl;
             }
             std::cout << "]" << std::endl;
-            std::cout << "response body: [" << response.body << "]"
+            std::cout << "response body: \"" << response.body << "\""
                       << std::endl;
             exit(EXIT_SUCCESS);
           });
-
-  std::cout << "after request" << std::endl;
 
 #if defined(linux)
   g_main_loop_run(loop);
