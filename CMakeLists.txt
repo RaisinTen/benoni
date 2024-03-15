@@ -16,6 +16,5 @@ endif()
 
 add_subdirectory(examples)
 
-find_package(GoogleTest REQUIRED)
 enable_testing()
 add_subdirectory(test)

@@ -1,6 +1,5 @@
-add_executable(benoni_http_unit http.cc)
+add_executable(postman_echo_get postman-echo-get.cc)
 
-target_link_libraries(benoni_http_unit PRIVATE benoni)
-target_link_libraries(benoni_http_unit PRIVATE GTest::gtest GTest::gtest_main)
+target_link_libraries(postman_echo_get PRIVATE benoni)
 
-gtest_discover_tests(benoni_http_unit)
+add_test(NAME postman_echo_get COMMAND $<TARGET_FILE:postman_echo_get>)
