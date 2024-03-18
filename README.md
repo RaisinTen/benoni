@@ -9,7 +9,7 @@ cmake -B build && cmake --build build
 ## Format
 
 ```
-clang-format --style=file -i include/http.h src/apple/http.mm src/win32/http.cc src/linux/http.cc examples/http_example.cc test/postman-echo-get.cc
+clang-format --style=file -i include/benoni/http.h src/apple/http.mm src/win32/http.cc src/linux/http.cc examples/http_example.cc test/postman-echo-get.cc
 ```
 
 ## Examples
