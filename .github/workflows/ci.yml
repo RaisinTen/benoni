@@ -16,6 +16,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Install dependencies (GNU/Linux)
+      if: runner.os == 'linux'
+      run: |
+        sudo apt-get update --yes
+        sudo apt-get install --yes libsoup-gnome2.4-dev
+
     - name: Set reusable strings
       id: strings
       shell: bash
