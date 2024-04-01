@@ -1,6 +1,8 @@
 #include <benoni/http.h>
 
-#if defined(linux)
+#if defined(__APPLE__)
+#include <CoreFoundation/CoreFoundation.h>
+#elif defined(linux)
 #include <glib.h>
 #endif
 
@@ -57,7 +59,9 @@ int main() {
             exit(EXIT_SUCCESS);
           });
 
-#if defined(linux)
+#if defined(__APPLE__)
+  CFRunLoopRun();
+#elif defined(linux)
   g_main_loop_run(loop);
   g_main_loop_unref(loop);
 #else
