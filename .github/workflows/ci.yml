@@ -34,6 +34,8 @@ jobs:
       run: >
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DBENONI_TESTS:BOOL=ON
+        -DBENONI_EXAMPLES:BOOL=ON
         -S ${{ github.workspace }}
 
     - name: Build
