@@ -19,7 +19,7 @@ struct HTTPTaskContext {
 } // namespace
 
 @interface BenoniHTTPTaskContextWrap : NSObject
-@property HTTPTaskContext *context;
+@property(nonatomic) HTTPTaskContext *context;
 - (BenoniHTTPTaskContextWrap *)initWithContext:(HTTPTaskContext *)context;
 - (void)dealloc;
 @end
@@ -44,7 +44,7 @@ struct HTTPTaskContext {
 
 @interface BenoniHTTPSessionDelegate
     : NSObject <NSURLSessionDelegate, NSURLSessionTaskDelegate>
-@property(readonly)
+@property(nonatomic, readonly)
     NSMutableDictionary<NSNumber *, BenoniHTTPTaskContextWrap *> *contextMap;
 - (BenoniHTTPSessionDelegate *)init;
 
@@ -91,13 +91,13 @@ struct HTTPTaskContext {
   if ([httpResponse respondsToSelector:@selector(allHeaderFields)]) {
     auto &headers = context->headers;
     NSDictionary *allHeaderFields = [httpResponse allHeaderFields];
-    for (NSString *key in allHeaderFields) {
-      headers[[key UTF8String]] =
-          [[allHeaderFields objectForKey:key] UTF8String];
+    for (NSString *headerField in allHeaderFields) {
+      headers[[headerField UTF8String]] =
+          [[allHeaderFields objectForKey:headerField] UTF8String];
     }
   }
 
-  context->status = [httpResponse statusCode];
+  context->status = static_cast<uint16_t>([httpResponse statusCode]);
 
   context->encoding = NSUTF8StringEncoding;
   NSString *encodingName = [httpResponse textEncodingName];
