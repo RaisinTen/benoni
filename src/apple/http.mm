@@ -39,7 +39,6 @@ struct HTTPTaskContext {
 
 - (void)dealloc {
   delete context;
-  [super dealloc];
 }
 @end
 
@@ -123,7 +122,7 @@ struct HTTPTaskContext {
   HTTPTaskContext *context = [contextWrap context];
 
   if (context->data == nil) {
-    context->data = [[NSMutableData data] retain];
+    context->data = [NSMutableData data];
   }
 
   [context->data appendData:data];
@@ -140,7 +139,7 @@ struct HTTPTaskContext {
 
   if (error) {
     std::string error_string([[error localizedDescription] UTF8String]);
-    [contextWrap dealloc];
+    contextMap_[key] = nil;
     callback(std::move(error_string));
     return;
   }
@@ -159,11 +158,11 @@ struct HTTPTaskContext {
     }
     [responseString appendString:chunk];
   }];
-  [context->data release];
+  context->data = nil;
 
   if (success == NO) {
     std::string error_string("response body has invalid encoding");
-    [contextWrap dealloc];
+    contextMap_[key] = nil;
     callback(std::move(error_string));
     return;
   }
@@ -175,7 +174,7 @@ struct HTTPTaskContext {
       .status = context->status,
       .headers = std::move(context->headers),
   };
-  [contextWrap dealloc];
+  contextMap_[key] = nil;
   callback(response);
 }
 @end
