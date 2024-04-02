@@ -14,7 +14,7 @@ configure: .always
 	$(CMAKE) -B build -DBENONI_TESTS:BOOL=ON -DBENONI_EXAMPLES:BOOL=ON
 
 build: .always
-	$(CLANG_FORMAT) --style=file -i include/benoni/http.h src/apple/http.mm src/win32/http.cc src/linux/http.cc examples/http_example.cc test/postman-echo-get.cc
+	$(CLANG_FORMAT) --style=file -i include/benoni/http.h src/apple/http.mm src/win32/http.cc src/linux/http.cc examples/http_example.cc test/unit/postman-echo-get.cc test/packaging/project/project.cc
 	$(CMAKE) --build build
 
 example: .always
