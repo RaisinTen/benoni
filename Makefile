@@ -16,6 +16,7 @@ configure: .always
 build: .always
 	$(CLANG_FORMAT) --style=file -i include/benoni/http.h src/apple/http.mm src/win32/http.cc src/linux/http.cc examples/http_example.cc test/unit/postman-echo-get.cc test/packaging/project/project.cc
 	$(CMAKE) --build build
+	$(CMAKE) --install build --prefix build/dist --config Debug --component benoni --verbose
 
 example: .always
 	$(EXAMPLE)

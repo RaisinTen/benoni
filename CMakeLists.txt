@@ -17,6 +17,20 @@ elseif(UNIX)
   add_subdirectory(src/linux)
 endif()
 
+set_target_properties(benoni PROPERTIES PUBLIC_HEADER include/benoni/http.h)
+
+include(GNUInstallDirs)
+
+install(TARGETS benoni
+  EXPORT benoni
+  PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
+    COMPONENT benoni
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    COMPONENT benoni)
+install(EXPORT benoni
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/cmake"
+    COMPONENT benoni)
+
 if(BENONI_EXAMPLES)
   add_subdirectory(examples)
 endif()
