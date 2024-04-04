@@ -3,6 +3,7 @@
 #import <Foundation/Foundation.h>
 
 #include <map>     // std::map
+#include <sstream> // std::istringstream
 #include <string>  // std::string
 #include <variant> // std::variant
 
@@ -11,7 +12,7 @@ namespace {
 struct HTTPTaskContext {
   std::function<void(std::variant<std::string, benoni::Response>)> callback;
   uint16_t status;
-  std::map<std::string, std::string> headers;
+  std::multimap<std::string, std::string> headers;
   NSMutableData *data;
   NSStringEncoding encoding;
 };
@@ -92,8 +93,16 @@ struct HTTPTaskContext {
     auto &headers = context->headers;
     NSDictionary *allHeaderFields = [httpResponse allHeaderFields];
     for (NSString *headerField in allHeaderFields) {
-      headers[[headerField UTF8String]] =
+      std::string header_key = [headerField UTF8String];
+      std::string header_value =
           [[allHeaderFields objectForKey:headerField] UTF8String];
+
+      // Splitting the header value by commas (common delimiter)
+      std::istringstream value_stream(header_value);
+      std::string single_value;
+      while (std::getline(value_stream, single_value, ',')) {
+        headers.emplace(header_key, single_value);
+      }
     }
   }
 

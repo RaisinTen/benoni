@@ -37,8 +37,9 @@ int main() {
               exit(EXIT_FAILURE);
             }
 
-            if (response.headers["Content-Type"] !=
-                "application/json; charset=utf-8") {
+            auto content_type = response.headers.find("Content-Type");
+            if (content_type == response.headers.end() ||
+                content_type->second != "application/json; charset=utf-8") {
               std::cout << "unexpected content type in response headers: ["
                         << std::endl;
               for (const auto &[key, value] : response.headers) {
