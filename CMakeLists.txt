@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 option(BENONI_TESTS "Build the Benoni tests" OFF)
 option(BENONI_EXAMPLES "Build the Benoni examples" OFF)
+option(BENONI_INSTALL "Install Benoni" ON)
 
 if(APPLE)
   add_subdirectory(src/apple)
@@ -17,19 +18,21 @@ elseif(UNIX)
   add_subdirectory(src/linux)
 endif()
 
-set_target_properties(benoni PROPERTIES PUBLIC_HEADER include/benoni/http.h)
+set_target_properties(benoni PROPERTIES PUBLIC_HEADER ${PROJECT_SOURCE_DIR}/include/benoni/http.h)
 
-include(GNUInstallDirs)
+if(BENONI_INSTALL)
+  include(GNUInstallDirs)
 
-install(TARGETS benoni
-  EXPORT benoni
-  PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
-    COMPONENT benoni
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    COMPONENT benoni)
-install(EXPORT benoni
-  DESTINATION "${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/cmake"
-    COMPONENT benoni)
+  install(TARGETS benoni
+    EXPORT benoni
+    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
+      COMPONENT benoni
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+      COMPONENT benoni)
+  install(EXPORT benoni
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/cmake"
+      COMPONENT benoni)
+endif()
 
 if(BENONI_EXAMPLES)
   add_subdirectory(examples)
