@@ -336,7 +336,15 @@ private:
     }
 
     for (DWORD i = 0; i < dwHeadersCount; ++i) {
-      headers_[pHeaders[i].pszName] = pHeaders[i].pszValue;
+      std::string header_key = pHeaders[i].pszName;
+      std::string header_value = pHeaders[i].pszValue;
+
+      // Splitting the header value by commas (common delimiter)
+      std::istringstream value_stream(header_value);
+      std::string single_value;
+      while (std::getline(value_stream, single_value, ',')) {
+        headers_.emplace(header_key, single_value);
+      }
     }
   }
 
@@ -423,7 +431,7 @@ private:
   Request request_;
 
   uint16_t status_;
-  std::map<std::string, std::string> headers_;
+  std::multimap<std::string, std::string> headers_;
   DWORD dwSize_;
   std::stringstream body_;
 };
