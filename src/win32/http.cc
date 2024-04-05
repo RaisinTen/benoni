@@ -59,7 +59,8 @@ public:
     urlComp_.dwUrlPathLength = (DWORD)-1;
     urlComp_.dwExtraInfoLength = (DWORD)-1;
 
-    if (WinHttpCrackUrl(url_.c_str(), url_.length(), 0, &urlComp_) == FALSE) {
+    if (WinHttpCrackUrl(url_.c_str(), static_cast<DWORD>(url_.length()), 0,
+                        &urlComp_) == FALSE) {
       DWORD err = GetLastError();
       callback("WinHttpCrackUrl Error: " + error_message(err));
       return;
@@ -304,7 +305,7 @@ private:
       callback_("WinHttpQueryHeaders Error: " + error_message(err));
       return;
     }
-    status_ = dwStatusCode;
+    status_ = static_cast<uint16_t>(dwStatusCode);
   }
 
   auto capture_headers() -> void {
@@ -391,8 +392,8 @@ private:
     body_ << data;
   }
 
-  static auto WinHttpStatusCallback(HINTERNET hInternet, DWORD_PTR dwContext,
-                                    DWORD dwInternetStatus,
+  static auto WinHttpStatusCallback(HINTERNET /* hInternet */,
+                                    DWORD_PTR dwContext, DWORD dwInternetStatus,
                                     LPVOID lpvStatusInformation,
                                     DWORD dwStatusInformationLength) -> void {
     assert(dwContext);
