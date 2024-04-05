@@ -22,7 +22,7 @@ example: .always
 	$(EXAMPLE)
 
 test: .always
-	$(CTEST) -C Debug --test-dir build --parallel
+	$(CTEST) -C Debug --test-dir build --parallel --output-on-failure
 
 # For NMake, which doesn't support .PHONY
 .always:
