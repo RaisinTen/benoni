@@ -9,6 +9,9 @@ option(BENONI_TESTS "Build the Benoni tests" OFF)
 option(BENONI_EXAMPLES "Build the Benoni examples" OFF)
 option(BENONI_INSTALL "Install Benoni" ON)
 
+string(TOLOWER ${CMAKE_SYSTEM_NAME} LOWER_SYSTEM_NAME)
+set(BENONI_TARGET ${PROJECT_NAME}_${LOWER_SYSTEM_NAME})
+
 if(APPLE)
   add_subdirectory(src/apple)
 elseif(WIN32)
@@ -18,12 +21,12 @@ elseif(UNIX)
   add_subdirectory(src/linux)
 endif()
 
-set_target_properties(benoni PROPERTIES PUBLIC_HEADER ${PROJECT_SOURCE_DIR}/include/benoni/http.h)
+set_target_properties(${BENONI_TARGET} PROPERTIES PUBLIC_HEADER ${PROJECT_SOURCE_DIR}/include/benoni/http.h)
 
 if(BENONI_INSTALL)
   include(GNUInstallDirs)
 
-  install(TARGETS benoni
+  install(TARGETS ${BENONI_TARGET}
     EXPORT benoni
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
       COMPONENT benoni
