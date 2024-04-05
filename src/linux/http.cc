@@ -43,14 +43,14 @@ auto stream_close_callback(GObject *source_object, GAsyncResult *res,
   soup_message_headers_foreach(
       async_http_context->message->response_headers,
       [](const char *name, const char *value, gpointer user_data) {
-        auto &headers =
+        auto &headers_alias =
             *static_cast<std::map<std::string, std::string> *>(user_data);
 
         // Splitting the header value by commas (common delimiter)
         std::istringstream value_stream(value);
         std::string single_value;
         while (std::getline(value_stream, single_value, ',')) {
-          headers.emplace(name, single_value);
+          headers_alias.emplace(name, single_value);
         }
       },
       &headers);
@@ -90,7 +90,8 @@ auto stream_read_callback(GObject *source_object, GAsyncResult *res,
   assert(bytes_read > 0);
 
   for (gssize i = 0; i < bytes_read; ++i) {
-    async_http_context->response << async_http_context->buffer[i];
+    async_http_context->response
+        << async_http_context->buffer[static_cast<std::size_t>(i)];
   }
 
   g_input_stream_read_async(stream, async_http_context->buffer.data(),
